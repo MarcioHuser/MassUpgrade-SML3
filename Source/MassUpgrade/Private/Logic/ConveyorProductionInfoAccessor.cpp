@@ -302,7 +302,7 @@ void UConveyorProductionInfoAccessor::CollectConveyorProductionInfo
 
 			float order = type1 - type2;
 
-			if (order == 0)
+			if (order == 0 )
 			{
 				order = buildClass1->GetDefaultObject<AFGBuildableConveyorBase>()->GetSpeed() - buildClass2->GetDefaultObject<AFGBuildableConveyorBase>()->GetSpeed();
 			}

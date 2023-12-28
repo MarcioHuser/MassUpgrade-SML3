@@ -97,8 +97,8 @@ void UMassUpgradeLogic::UpgradeConveyors_Server
 
 	std::map<TSubclassOf<UFGRecipe>, int32> recipeAmountMap;
 
-	TArray<AFGBuildableConveyorBelt*> belts;
-	TArray<AFGBuildableConveyorLift*> lifts;
+	TArray<AFGBuildableConveyorBase*> belts;
+	TArray<AFGBuildableConveyorBase*> lifts;
 
 	for (const auto& info : infos)
 	{
@@ -119,12 +119,12 @@ void UMassUpgradeLogic::UpgradeConveyors_Server
 
 	if (newBeltTypeRecipe && !belts.IsEmpty())
 	{
-		recipeAmountMap[newBeltTypeRecipe] = UpgradeBelt(player, belts, newBeltTypeRecipe, itemsToAddOrRemoveFromInventory);
+		recipeAmountMap[newBeltTypeRecipe] = UpgradeConveyor(player, belts, newBeltTypeRecipe, itemsToAddOrRemoveFromInventory);
 	}
 
 	if (newLiftTypeRecipe && !lifts.IsEmpty())
 	{
-		recipeAmountMap[newLiftTypeRecipe] = UpgradeLifts(player, lifts, newLiftTypeRecipe, itemsToAddOrRemoveFromInventory);
+		recipeAmountMap[newLiftTypeRecipe] = UpgradeConveyor(player, lifts, newLiftTypeRecipe, itemsToAddOrRemoveFromInventory);
 	}
 
 	TMap<TSubclassOf<UFGItemDescriptor>, int32> excessToDrop;
@@ -208,11 +208,11 @@ void UMassUpgradeLogic::UpgradeConveyors_Server
 	}
 }
 
-int32 UMassUpgradeLogic::UpgradeBelt
+int32 UMassUpgradeLogic::UpgradeConveyor
 (
 	class AFGCharacterPlayer* player,
-	const TArray<AFGBuildableConveyorBelt*>& belts,
-	TSubclassOf<UFGRecipe> newBeltTypeRecipe,
+	const TArray<AFGBuildableConveyorBase*>& conveyors,
+	TSubclassOf<UFGRecipe> newConveyorTypeRecipe,
 	TMap<TSubclassOf<UFGItemDescriptor>, int32>& itemsToAddOrRemoveFromInventory
 )
 {
@@ -224,28 +224,26 @@ int32 UMassUpgradeLogic::UpgradeBelt
 	int32 amountBuilt = 0;
 
 	auto world = player->GetWorld();
-	auto newBeltType = AFGBuildable::GetBuildableClassFromRecipe(newBeltTypeRecipe);
+	auto newConveyorType = AFGBuildable::GetBuildableClassFromRecipe(newConveyorTypeRecipe);
 	auto buildableSubsystem = AFGBuildableSubsystem::Get(world);
 	auto playerInventory = player->GetInventory();
 	auto gameState = Cast<AFGGameState>(world->GetGameState());
 
-	for (auto belt : belts)
+	for (auto conveyor : conveyors)
 	{
-		if (belt->GetClass() == newBeltType)
+		if (conveyor->GetClass() == newConveyorType)
 		{
 			continue;
 		}
 
-		auto hologram = Cast<AFGConveyorBeltHologram>(
-			AFGHologram::SpawnHologramFromRecipe(
-				newBeltTypeRecipe,
-				player->GetBuildGun(),
-				belt->GetActorLocation(),
-				player
-				)
+		auto hologram = AFGHologram::SpawnHologramFromRecipe(
+			newConveyorTypeRecipe,
+			player->GetBuildGun(),
+			conveyor->GetActorLocation(),
+			player
 			);
 
-		FHitResult hitResult(belt, hologram->GetComponentByClass<UPrimitiveComponent>(), belt->GetActorLocation(), belt->GetActorRotation().Vector());
+		FHitResult hitResult(conveyor, hologram->GetComponentByClass<UPrimitiveComponent>(), conveyor->GetActorLocation(), conveyor->GetActorRotation().Vector());
 		if (!hologram->TryUpgrade(hitResult))
 		{
 			hologram->Destroy();
@@ -268,7 +266,7 @@ int32 UMassUpgradeLogic::UpgradeBelt
 			}
 
 			TArray<FInventoryStack> refunds;
-			belt->GetDismantleRefundReturns(refunds);
+			conveyor->GetDismantleRefundReturns(refunds);
 
 			for (const auto& inventory : refunds)
 			{
@@ -283,136 +281,29 @@ int32 UMassUpgradeLogic::UpgradeBelt
 		hologram->CheckValidPlacement();
 
 		TArray<AActor*> children;
-		auto newBelt = Cast<AFGBuildableConveyorBelt>(hologram->Construct(children, buildableSubsystem->GetNewNetConstructionID()));
+		auto newConveyor = Cast<AFGBuildableConveyorBelt>(hologram->Construct(children, buildableSubsystem->GetNewNetConstructionID()));
 
 		hologram->Destroy();
 
-		belt->PreUpgrade_Implementation();
-		belt->Upgrade_Implementation(newBelt);
+		conveyor->PreUpgrade_Implementation();
+		conveyor->Upgrade_Implementation(newConveyor);
 
 		// Remake the connections
-		if (auto connection = belt->GetConnection0()->GetConnection())
+		if (auto connection = conveyor->GetConnection0()->GetConnection())
 		{
-			belt->GetConnection0()->ClearConnection(); // Disconnect
-			newBelt->GetConnection0()->SetConnection(connection); // Connect to the new belt
+			conveyor->GetConnection0()->ClearConnection(); // Disconnect
+			newConveyor->GetConnection0()->SetConnection(connection); // Connect to the new conveyor
 		}
 
-		if (auto connection = belt->GetConnection1()->GetConnection())
+		if (auto connection = conveyor->GetConnection1()->GetConnection())
 		{
-			belt->GetConnection1()->ClearConnection(); // Disconnect
-			newBelt->GetConnection1()->SetConnection(connection); // Connect to the new belt
+			conveyor->GetConnection1()->ClearConnection(); // Disconnect
+			newConveyor->GetConnection1()->SetConnection(connection); // Connect to the new conveyor
 		}
 
-		belt->Destroy();
+		conveyor->Destroy();
 
-		amountBuilt += newBelt->GetDismantleRefundReturnsMultiplier();
-	}
-
-	return amountBuilt;
-}
-
-int32 UMassUpgradeLogic::UpgradeLifts
-(
-	class AFGCharacterPlayer* player,
-	const TArray<AFGBuildableConveyorLift*>& lifts,
-	TSubclassOf<UFGRecipe> newLiftTypeRecipe,
-	TMap<TSubclassOf<UFGItemDescriptor>, int32>& itemsToAddOrRemoveFromInventory
-)
-{
-	if (!player)
-	{
-		return 0;
-	}
-
-	int32 amountBuilt = 0;
-
-	auto world = player->GetWorld();
-	auto newLiftType = AFGBuildable::GetBuildableClassFromRecipe(newLiftTypeRecipe);
-	auto buildableSubsystem = AFGBuildableSubsystem::Get(world);
-	auto playerInventory = player->GetInventory();
-	auto gameState = Cast<AFGGameState>(world->GetGameState());
-
-	for (auto lift : lifts)
-	{
-		if (lift->GetClass() == newLiftType)
-		{
-			continue;
-		}
-
-		auto hologram = Cast<AFGConveyorLiftHologram>(
-			AFGHologram::SpawnHologramFromRecipe(
-				newLiftTypeRecipe,
-				player->GetBuildGun(),
-				lift->GetActorLocation(),
-				player
-				)
-			);
-
-		FHitResult hitResult(lift, hologram->GetComponentByClass<UPrimitiveComponent>(), lift->GetActorLocation(), lift->GetActorRotation().Vector());
-		if (!hologram->TryUpgrade(hitResult))
-		{
-			hologram->Destroy();
-			continue;
-		}
-
-		hologram->ValidatePlacementAndCost(playerInventory);
-
-		if (!hologram->IsUpgrade())
-		{
-			hologram->Destroy();
-			continue;
-		}
-
-		UMarcioCommonLibsUtils::DumpUnknownClass(lift);
-
-		if (!gameState->GetCheatNoCost())
-		{
-			for (const auto& itemAmount : hologram->GetCost(false))
-			{
-				itemsToAddOrRemoveFromInventory.FindOrAdd(itemAmount.ItemClass) -= itemAmount.Amount;
-			}
-
-			TArray<FInventoryStack> refunds;
-			lift->GetDismantleRefundReturns(refunds);
-
-			for (const auto& inventory : refunds)
-			{
-				itemsToAddOrRemoveFromInventory.FindOrAdd(inventory.Item.GetItemClass()) += inventory.NumItems;
-			}
-		}
-
-		hologram->CheckValidPlacement();
-
-		hologram->DoMultiStepPlacement(false);
-
-		hologram->CheckValidPlacement();
-
-		TArray<AActor*> children;
-		auto newLift = Cast<AFGBuildableConveyorLift>(hologram->Construct(children, buildableSubsystem->GetNewNetConstructionID()));
-
-		hologram->Destroy();
-
-		lift->PreUpgrade_Implementation();
-		lift->Upgrade_Implementation(newLift);
-
-		// Remake the connections
-		if (auto connection = lift->GetConnection0()->GetConnection())
-		{
-			lift->GetConnection0()->ClearConnection(); // Disconnect
-			newLift->GetConnection0()->SetConnection(connection); // Connect to the new lift
-		}
-
-		if (auto connection = lift->GetConnection1()->GetConnection())
-		{
-			lift->GetConnection1()->ClearConnection(); // Disconnect
-			newLift->GetConnection1()->SetConnection(connection); // Connect to the new lift
-		}
-
-		UMarcioCommonLibsUtils::DumpUnknownClass(newLift);
-
-		lift->Destroy();
-
-		amountBuilt += newLift->GetDismantleRefundReturnsMultiplier();
+		amountBuilt += newConveyor->GetDismantleRefundReturnsMultiplier();
 	}
 
 	return amountBuilt;

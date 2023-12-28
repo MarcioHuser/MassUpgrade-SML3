@@ -19,11 +19,11 @@ void FMassUpgradeModule::StartupModule()
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
 
 #if UE_BUILD_SHIPPING
-	static FString indent;
+	// static FString indent;
 
 	static auto hooked = false;
 
-	static auto insideBuildGunPrimaryFire = true;
+	// static auto insideBuildGunPrimaryFire = true;
 
 	if (!hooked)
 	{
@@ -388,7 +388,7 @@ void FMassUpgradeModule::StartupModule()
 
 		{
 			// auto ObjectInstance = GetMutableDefault<AFGBuildableConveyorLift>();
-			
+
 			// SUBSCRIBE_METHOD_VIRTUAL(
 			// 	AFGBuildableConveyorLift::Upgrade_Implementation,
 			// 	ObjectInstance,

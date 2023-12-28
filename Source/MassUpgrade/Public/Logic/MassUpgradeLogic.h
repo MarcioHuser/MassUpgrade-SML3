@@ -26,19 +26,11 @@ public:
 		const TArray<struct FConveyorProductionInfo>& infos
 	);
 
-	static int32 UpgradeBelt
+	static int32 UpgradeConveyor
 	(
 		class AFGCharacterPlayer* player,
-		const TArray<class AFGBuildableConveyorBelt*>& belts,
-		TSubclassOf<UFGRecipe> newBeltTypeRecipe,
-		TMap<TSubclassOf<UFGItemDescriptor>, int32>& itemsToAddOrRemoveFromInventory
-	);
-
-	static int32 UpgradeLifts
-	(
-		class AFGCharacterPlayer* player,
-		const TArray<class AFGBuildableConveyorLift*>& lifts,
-		TSubclassOf<UFGRecipe> newBeltTypeRecipe,
+		const TArray<class AFGBuildableConveyorBase*>& conveyors,
+		TSubclassOf<UFGRecipe> newConveyorTypeRecipe,
 		TMap<TSubclassOf<UFGItemDescriptor>, int32>& itemsToAddOrRemoveFromInventory
 	);
 };
