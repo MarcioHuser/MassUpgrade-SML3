@@ -1,4 +1,4 @@
-﻿#include "Logic/ConveyorProductionInfoAccessor.h"
+﻿#include "Logic/ProductionInfoAccessor.h"
 
 #include "FGCharacterPlayer.h"
 #include "FGFactoryConnectionComponent.h"
@@ -7,11 +7,7 @@
 #include "Buildables/FGBuildableConveyorBelt.h"
 #include "Buildables/FGBuildableConveyorLift.h"
 #include "Buildables/FGBuildableStorage.h"
-#include "Model/ConveyorBySpeedInfo.h"
 #include "Resources/FGBuildDescriptor.h"
-
-#include <map>
-
 #include "FGGameState.h"
 #include "FGPlayerController.h"
 #include "Engine/Engine.h"
@@ -19,70 +15,66 @@
 #include "ShoppingList/FGShoppingListObject.h"
 #include "Subsystems/CommonInfoSubsystem.h"
 
+#include <map>
+
+#include "FGPipeConnectionComponent.h"
+#include "Buildables/FGBuildablePipeBase.h"
+#include "Buildables/FGBuildablePipeline.h"
+#include "Buildables/FGBuildablePipelinePump.h"
+
 #ifndef OPTIMIZE
 #pragma optimize("", off)
 #endif
 
-void UConveyorProductionInfoAccessor::GetRefundableItems
+void UProductionInfoAccessor::GetRefundableItems
 (
 	UObject* worldContext,
-	TSubclassOf<UFGRecipe> newBeltTypeRecipe,
-	TSubclassOf<UFGRecipe> newLiftTypeRecipe,
-	const FConveyorProductionInfo& conveyorProductionInfo,
+	TSubclassOf<UFGRecipe> newTypeRecipe,
+	const FProductionInfo& productionInfo,
 	TMap<TSubclassOf<UFGItemDescriptor>, int32>& itemsToRefund,
 	TMap<TSubclassOf<UFGItemDescriptor>, int32>& upgradeCost,
 	float& length
 )
 {
-	itemsToRefund.Empty();
-	length = 0;
-
-	auto newBeltType = newBeltTypeRecipe ? AFGBuildable::GetBuildableClassFromRecipe(newBeltTypeRecipe) : nullptr;
-	auto newBeltCost = newBeltTypeRecipe ? UFGRecipe::GetIngredients(newBeltTypeRecipe) : TArray<FItemAmount>();
-
-	auto newLiftType = newLiftTypeRecipe ? AFGBuildable::GetBuildableClassFromRecipe(newLiftTypeRecipe) : nullptr;
-	auto newLiftCost = newLiftTypeRecipe ? UFGRecipe::GetIngredients(newLiftTypeRecipe) : TArray<FItemAmount>();
+	auto newType = newTypeRecipe ? AFGBuildable::GetBuildableClassFromRecipe(newTypeRecipe) : nullptr;
+	auto newCost = newTypeRecipe ? UFGRecipe::GetIngredients(newTypeRecipe) : TArray<FItemAmount>();
 
 	auto gameState = Cast<AFGGameState>(GEngine->GetWorldFromContextObject(worldContext, EGetWorldErrorMode::ReturnNull)->GetGameState());
 
-	for (const auto conveyor : conveyorProductionInfo.conveyors)
+	for (const auto buildable : productionInfo.buildables)
 	{
-		length += conveyor->GetLength();
+		int32 multiplier = 1;
 
-		auto conveyorClass = conveyor->GetClass();
-		auto belt = Cast<AFGBuildableConveyorBelt>(conveyor);
-		auto lift = Cast<AFGBuildableConveyorLift>(conveyor);
-
-		if (!gameState->GetCheatNoCost() && ((belt && conveyorClass != newBeltType) || (lift && conveyorClass != newLiftType)))
+		if (auto conveyor = Cast<AFGBuildableConveyorBase>(buildable))
 		{
-			int32 multiplier = 1;
-			if (belt)
-			{
-				multiplier = conveyor->GetDismantleRefundReturnsMultiplier();
-			}
-			else if (lift)
-			{
-				multiplier = conveyor->GetDismantleRefundReturnsMultiplier();
-			}
+			length += conveyor->GetLength();
+			multiplier = buildable->GetDismantleRefundReturnsMultiplier();
+		}
+		else if (auto pipe = Cast<AFGBuildablePipeBase>(buildable))
+		{
+			length += pipe->GetLength();
+			multiplier = pipe->GetDismantleRefundReturnsMultiplier();
+		}
+		else
+		{
+			length += 1;
+		}
 
+		auto buildableClass = buildable->GetClass();
+
+		if (!gameState->GetCheatNoCost() && buildableClass != newType)
+		{
 			TArray<FInventoryStack> refunds;
-			conveyor->GetDismantleRefundReturns(refunds);
+			buildable->GetDismantleRefundReturns(refunds);
 
 			for (const auto& inventory : refunds)
 			{
 				itemsToRefund.FindOrAdd(inventory.Item.GetItemClass()) += inventory.NumItems;
 			}
 
-			if (newBeltType && belt)
+			if (newType)
 			{
-				for (const auto& item : newBeltCost)
-				{
-					upgradeCost.FindOrAdd(item.ItemClass) += multiplier * item.Amount;
-				}
-			}
-			else if (newLiftType && lift)
-			{
-				for (const auto& item : newLiftCost)
+				for (const auto& item : newCost)
 				{
 					upgradeCost.FindOrAdd(item.ItemClass) += multiplier * item.Amount;
 				}
@@ -90,34 +82,25 @@ void UConveyorProductionInfoAccessor::GetRefundableItems
 		}
 	}
 
-	itemsToRefund.KeySort(
-		[](const auto& x, const auto& y)
-		{
-			auto nameX = UFGItemDescriptor::GetItemName(x);
-			auto nameY = UFGItemDescriptor::GetItemName(y);
+	auto sortItemByName = [](const auto& x, const auto& y)
+	{
+		auto nameX = UFGItemDescriptor::GetItemName(x);
+		auto nameY = UFGItemDescriptor::GetItemName(y);
 
-			return nameX.CompareTo(nameY) < 0;
-		}
-		);
+		return nameX.CompareTo(nameY) < 0;
+	};
 
-	upgradeCost.KeySort(
-		[](const auto& x, const auto& y)
-		{
-			auto nameX = UFGItemDescriptor::GetItemName(x);
-			auto nameY = UFGItemDescriptor::GetItemName(y);
+	itemsToRefund.KeySort(sortItemByName);
 
-			return nameX.CompareTo(nameY) < 0;
-		}
-		);
+	upgradeCost.KeySort(sortItemByName);
 }
 
-bool UConveyorProductionInfoAccessor::CanAffordUpgrade
+bool UProductionInfoAccessor::CanAffordUpgrade
 (
-	class AFGCharacterPlayer* player,
-	const TSubclassOf<class UFGRecipe>& targetBeltRecipe,
-	const TSubclassOf<class UFGRecipe>& targetLiftRecipe,
+	AFGCharacterPlayer* player,
+	const TArray<TSubclassOf<UFGRecipe>>& targetRecipes,
 	const TMap<TSubclassOf<UFGItemDescriptor>, int32>& upgradeCost,
-	const TArray<FConveyorProductionInfo>& infos
+	const TArray<FProductionInfo>& infos
 )
 {
 	if (!player)
@@ -129,8 +112,17 @@ bool UConveyorProductionInfoAccessor::CanAffordUpgrade
 
 	auto gameState = Cast<AFGGameState>(player->GetWorld()->GetGameState());
 
-	auto newBeltType = targetBeltRecipe ? AFGBuildable::GetBuildableClassFromRecipe(targetBeltRecipe) : nullptr;
-	auto newLiftType = targetLiftRecipe ? AFGBuildable::GetBuildableClassFromRecipe(targetLiftRecipe) : nullptr;
+	TSet<TSubclassOf<AActor>> newTypes;
+
+	for (const auto& targetRecipe : targetRecipes)
+	{
+		if (!targetRecipe)
+		{
+			continue;
+		}
+
+		newTypes.Add(AFGBuildable::GetBuildableClassFromRecipe(targetRecipe));
+	}
 
 	if (!gameState->GetCheatNoCost())
 	{
@@ -153,9 +145,9 @@ bool UConveyorProductionInfoAccessor::CanAffordUpgrade
 	// Must refund something to be true
 	for (const auto& info : infos)
 	{
-		auto buildClass = UFGBuildDescriptor::GetBuildClass(info.conveyorType);
+		auto buildClass = UFGBuildDescriptor::GetBuildClass(info.buildableType);
 
-		if (newBeltType == buildClass || newLiftType == buildClass)
+		if (newTypes.Contains(buildClass))
 		{
 			// Already of the target type. No upgrade will happen
 			continue;
@@ -168,51 +160,52 @@ bool UConveyorProductionInfoAccessor::CanAffordUpgrade
 	return false;
 }
 
-void UConveyorProductionInfoAccessor::CollectConveyorProductionInfo
+void UProductionInfoAccessor::CollectConveyorProductionInfo
 (
-	AFGBuildableConveyorBase* targetConveyor,
+	class AFGBuildable* targetBuildable,
 	bool includeBelts,
 	bool includeLifts,
+	bool includeStorages,
 	bool crossAttachmentsAndStorages,
-	TArray<FConveyorProductionInfo>& infos
+	TArray<FProductionInfo>& infos
 )
 {
-	if (!targetConveyor)
+	if (!targetBuildable || !targetBuildable->IsA(AFGBuildableConveyorBase::StaticClass()) && !targetBuildable->IsA(AFGBuildableStorage::StaticClass()))
 	{
 		return;
 	}
 
 	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
 
-	std::map<TSubclassOf<AFGBuildableConveyorBase>, FConveyorProductionInfo> infosMap;
+	std::map<TSubclassOf<AFGBuildable>, FProductionInfo> infosMap;
 
 	TSet<AFGBuildable*> seenBuildable;
 	TSet<AFGBuildable*> pendingBuildable;
 
-	seenBuildable.Add(targetConveyor);
-	pendingBuildable.Add(targetConveyor);
+	seenBuildable.Add(targetBuildable);
+	pendingBuildable.Add(targetBuildable);
 
 	while (!pendingBuildable.IsEmpty())
 	{
 		auto buildable = *pendingBuildable.begin();
 		pendingBuildable.Remove(buildable);
 
-		if (auto conveyor = Cast<AFGBuildableConveyorBase>(buildable))
+		auto& info = infosMap[buildable->GetClass()];
+		info.buildableType = buildable->GetBuiltWithDescriptor<UFGBuildDescriptor>();
+
+		if (info.buildables.Contains(buildable))
 		{
-			auto& info = infosMap[conveyor->GetClass()];
-			info.conveyorType = conveyor->GetBuiltWithDescriptor<UFGBuildDescriptor>();
+			// Already processed. Skip to next buildable
+			continue;
+		}
 
-			if (info.conveyors.Contains(conveyor))
-			{
-				// Already processed. Skip to next buildable
-				continue;
-			}
-
-			if (includeBelts && conveyor->IsA(AFGBuildableConveyorBelt::StaticClass()) ||
-				includeLifts && conveyor->IsA(AFGBuildableConveyorLift::StaticClass()))
-			{
-				info.conveyors.Add(conveyor);
-			}
+		if (includeBelts && buildable->IsA(AFGBuildableConveyorBelt::StaticClass()) ||
+			includeLifts && buildable->IsA(AFGBuildableConveyorLift::StaticClass()) ||
+			includeStorages && buildable->IsA(AFGBuildableStorage::StaticClass()) &&
+			(buildable->GetClass()->GetPathName() == "/Game/FactoryGame/Buildable/Factory/StorageContainerMk1/Build_StorageContainerMk1.Build_StorageContainerMk1_C" ||
+				buildable->GetClass()->GetPathName() == "/Game/FactoryGame/Buildable/Factory/StorageContainerMk2/Build_StorageContainerMk2.Build_StorageContainerMk2_C"))
+		{
+			info.buildables.Add(buildable);
 		}
 
 		TSet<UFGFactoryConnectionComponent*> components;
@@ -283,7 +276,7 @@ void UConveyorProductionInfoAccessor::CollectConveyorProductionInfo
 
 	for (const auto& entry : infosMap)
 	{
-		if (entry.second.conveyors.IsEmpty())
+		if (entry.second.buildables.IsEmpty())
 		{
 			continue;
 		}
@@ -291,20 +284,60 @@ void UConveyorProductionInfoAccessor::CollectConveyorProductionInfo
 		infos.Add(entry.second);
 	}
 
-	infos.Sort(
-		[](const FConveyorProductionInfo& conveyor1, const FConveyorProductionInfo& conveyor2)
-		{
-			auto buildClass1 = UFGBuildDescriptor::GetBuildClass(conveyor1.conveyorType);
-			auto buildClass2 = UFGBuildDescriptor::GetBuildClass(conveyor2.conveyorType);
+	enum BuildableType
+	{
+		Unknown,
+		Belt,
+		Lift,
+		Storage,
+	};
 
-			auto type1 = buildClass1->IsChildOf(AFGBuildableConveyorBelt::StaticClass()) ? 0 : 1;
-			auto type2 = buildClass2->IsChildOf(AFGBuildableConveyorBelt::StaticClass()) ? 0 : 1;
+	auto getBuildableType = [](const TSubclassOf<AActor>& buildableType)
+	{
+		if (buildableType->IsChildOf(AFGBuildableConveyorBelt::StaticClass()))
+		{
+			return BuildableType::Belt;
+		}
+
+		if (buildableType->IsChildOf(AFGBuildableConveyorLift::StaticClass()))
+		{
+			return BuildableType::Lift;
+		}
+
+		if (buildableType->IsChildOf(AFGBuildableStorage::StaticClass()))
+		{
+			return BuildableType::Storage;
+		}
+
+		return BuildableType::Unknown;
+	};
+
+	infos.Sort(
+		[&getBuildableType](const FProductionInfo& conveyor1, const FProductionInfo& conveyor2)
+		{
+			auto buildClass1 = UFGBuildDescriptor::GetBuildClass(conveyor1.buildableType);
+			auto buildClass2 = UFGBuildDescriptor::GetBuildClass(conveyor2.buildableType);
+
+			auto type1 = getBuildableType(buildClass1);
+			auto type2 = getBuildableType(buildClass2);
 
 			float order = type1 - type2;
 
-			if (order == 0 )
+			if (order == 0)
 			{
-				order = buildClass1->GetDefaultObject<AFGBuildableConveyorBase>()->GetSpeed() - buildClass2->GetDefaultObject<AFGBuildableConveyorBase>()->GetSpeed();
+				if ((type1 == BuildableType::Belt || type1 == BuildableType::Lift) && (type2 == BuildableType::Belt || type2 == BuildableType::Lift))
+				{
+					order = buildClass1->GetDefaultObject<AFGBuildableConveyorBase>()->GetSpeed() - buildClass2->GetDefaultObject<AFGBuildableConveyorBase>()->GetSpeed();
+				}
+
+				if ((type1 == BuildableType::Storage) && (type2 == BuildableType::Storage))
+				{
+					auto storage1 = buildClass1->GetDefaultObject<AFGBuildableStorage>();
+					auto storage2 = buildClass2->GetDefaultObject<AFGBuildableStorage>();
+
+					order = storage1->mInventorySizeX * storage1->mInventorySizeY -
+						storage2->mInventorySizeX * storage2->mInventorySizeY;
+				}
 			}
 
 			return order < 0;
@@ -312,7 +345,181 @@ void UConveyorProductionInfoAccessor::CollectConveyorProductionInfo
 		);
 }
 
-void UConveyorProductionInfoAccessor::handleStorageTeleporter
+void UProductionInfoAccessor::CollectPipelineProductionInfo
+(
+	AFGBuildable* targetBuildable,
+	bool includePipelines,
+	bool includePumps,
+	bool crossAttachmentsAndStorages,
+	TArray<FProductionInfo>& infos
+)
+{
+	if (!targetBuildable || !targetBuildable->IsA(AFGBuildablePipeline::StaticClass()) && !targetBuildable->IsA(AFGBuildablePipelinePump::StaticClass()))
+	{
+		return;
+	}
+
+	std::map<TSubclassOf<AFGBuildable>, FProductionInfo> infosMap;
+
+	TSet<AFGBuildable*> seenBuildable;
+	TSet<AFGBuildable*> pendingBuildable;
+
+	seenBuildable.Add(targetBuildable);
+	pendingBuildable.Add(targetBuildable);
+
+	while (!pendingBuildable.IsEmpty())
+	{
+		auto buildable = *pendingBuildable.begin();
+		pendingBuildable.Remove(buildable);
+
+		auto& info = infosMap[buildable->GetClass()];
+		info.buildableType = buildable->GetBuiltWithDescriptor<UFGBuildDescriptor>();
+
+		if (info.buildables.Contains(buildable))
+		{
+			// Already processed. Skip to next buildable
+			continue;
+		}
+
+		if(includePipelines)
+		{
+			if (auto pipeline = Cast<AFGBuildablePipeline>(buildable))
+			{
+				info.buildables.Add(buildable);
+			}
+		}
+		if(includePump)
+		{
+			if (auto pump = Cast<AFGBuildablePipelinePump>(buildable))
+			{
+				if(pump->GetDesignHeadLift() > 0)
+				{
+					info.buildables.Add(pump);
+				}
+			}
+		}
+
+		TArray<UFGPipeConnectionComponent*> components;
+		buildable->GetComponents(components);
+
+		for (const auto& component : components)
+		{
+			if (!component->IsConnected())
+			{
+				continue;
+			}
+
+			auto otherBuildable = Cast<AFGBuildable>(component->GetConnection()->GetOwner());
+			if (!otherBuildable)
+			{
+				continue;
+			}
+
+			if (!otherBuildable->IsA(AFGBuildablePipeline::StaticClass()) &&
+				!(crossAttachmentsAndStorages && (
+						otherBuildable->IsA(AFGBuildablePipelinePump::StaticClass()) ||
+						otherBuildable->IsA(AFGBuildablePipelineAttachment::StaticClass())
+					)
+				))
+			{
+				// Not a valid buildable to add to check
+				continue;
+			}
+
+			if (seenBuildable.Contains(otherBuildable))
+			{
+				continue;
+			}
+
+			seenBuildable.Add(otherBuildable);
+			pendingBuildable.Add(otherBuildable);
+		}
+	}
+
+	for (const auto& entry : infosMap)
+	{
+		if (entry.second.buildables.IsEmpty())
+		{
+			continue;
+		}
+
+		infos.Add(entry.second);
+	}
+
+	enum BuildableType
+	{
+		Unknown,
+		Pipeline,
+		Pump,
+	};
+
+	auto getBuildableType = [](const TSubclassOf<AActor>& buildableType)
+	{
+		if (buildableType->IsChildOf(AFGBuildablePipeline::StaticClass()))
+		{
+			return BuildableType::Pipeline;
+		}
+
+		if (buildableType->IsChildOf(AFGBuildablePipelinePump::StaticClass()))
+		{
+			return BuildableType::Pump;
+		}
+
+		return BuildableType::Unknown;
+	};
+
+	infos.Sort(
+		[&getBuildableType](const FProductionInfo& conveyor1, const FProductionInfo& conveyor2)
+		{
+			auto buildClass1 = UFGBuildDescriptor::GetBuildClass(conveyor1.buildableType);
+			auto buildClass2 = UFGBuildDescriptor::GetBuildClass(conveyor2.buildableType);
+
+			auto type1 = getBuildableType(buildClass1);
+			auto type2 = getBuildableType(buildClass2);
+
+			float order = type1 - type2;
+
+			if (order == 0)
+			{
+				if (type1 == BuildableType::Pipeline && type2 == BuildableType::Pipeline)
+				{
+					auto pipeline1 = buildClass1->GetDefaultObject<AFGBuildablePipeline>();
+					auto pipeline2 = buildClass2->GetDefaultObject<AFGBuildablePipeline>();
+
+					order = pipeline1->GetFlowLimit() - pipeline2->GetFlowLimit();
+				}
+
+				if (type1 == BuildableType::Pump && type2 == BuildableType::Pump)
+				{
+					auto storage1 = buildClass1->GetDefaultObject<AFGBuildablePipelinePump>();
+					auto storage2 = buildClass2->GetDefaultObject<AFGBuildablePipelinePump>();
+
+					order = storage1->GetMaxHeadLift() - storage2->GetMaxHeadLift();
+				}
+			}
+
+			return order < 0;
+		}
+		);
+}
+
+void UProductionInfoAccessor::FilterInfos(TSubclassOf<AFGBuildable> baseType, TArray<FProductionInfo>& infos, TArray<FProductionInfo>& filteredInfos)
+{
+	for (const auto& info : infos)
+	{
+		auto buildClass = UFGBuildDescriptor::GetBuildClass(info.buildableType);
+
+		if (!buildClass->IsChildOf(baseType))
+		{
+			continue;
+		}
+
+		filteredInfos.Add(info);
+	}
+}
+
+
+void UProductionInfoAccessor::handleStorageTeleporter
 (
 	AFGBuildable* storageTeleporter,
 	TSet<UFGFactoryConnectionComponent*>& components
@@ -347,7 +554,7 @@ void UConveyorProductionInfoAccessor::handleStorageTeleporter
 	}
 }
 
-void UConveyorProductionInfoAccessor::handleUndergroundBeltsComponents
+void UProductionInfoAccessor::handleUndergroundBeltsComponents
 (
 	AFGBuildableStorage* undergroundBelt,
 	TSet<UFGFactoryConnectionComponent*>& components
@@ -419,7 +626,7 @@ void UConveyorProductionInfoAccessor::handleUndergroundBeltsComponents
 }
 
 
-void UConveyorProductionInfoAccessor::handleModularLoadBalancerComponents
+void UProductionInfoAccessor::handleModularLoadBalancerComponents
 (
 	AFGBuildableFactory* modularLoadBalancerGroupLeader,
 	TSet<UFGFactoryConnectionComponent*>& components
@@ -453,57 +660,44 @@ void UConveyorProductionInfoAccessor::handleModularLoadBalancerComponents
 	}
 }
 
-void UConveyorProductionInfoAccessor::AddInfosToShoppingList
-(
-	AFGCharacterPlayer* player,
-	const TArray<FConveyorProductionInfo>& infos,
-	const TSubclassOf<class UFGRecipe>& targetBeltRecipe,
-	const TSubclassOf<class UFGRecipe>& targetLiftRecipe
-)
+void UProductionInfoAccessor::AddInfosToShoppingList(AFGCharacterPlayer* player, const TArray<FProductionInfo>& infos, const TSubclassOf<UFGRecipe>& targetRecipe)
 {
-	if (!player)
+	if (!player || !targetRecipe)
 	{
 		return;
 	}
 
 	auto shoppingListComponent = UFGShoppingListComponent::GetShoppingListComponent(player->GetFGPlayerController());
 
-	auto newBeltType = targetBeltRecipe ? AFGBuildable::GetBuildableClassFromRecipe(targetBeltRecipe) : nullptr;
-	auto newLiftType = targetLiftRecipe ? AFGBuildable::GetBuildableClassFromRecipe(targetLiftRecipe) : nullptr;
+	auto newType = targetRecipe ? AFGBuildable::GetBuildableClassFromRecipe(targetRecipe) : nullptr;
 
 	for (const auto& info : infos)
 	{
-		if (info.conveyors.IsEmpty())
+		if (info.buildables.IsEmpty())
 		{
 			continue;
 		}
 
-		auto buildClass = UFGBuildDescriptor::GetBuildClass(info.conveyorType);
+		auto buildClass = UFGBuildDescriptor::GetBuildClass(info.buildableType);
 
-		if (newBeltType == buildClass || newLiftType == buildClass)
+		if (newType == buildClass)
 		{
 			// Already of the target type or no item in list. No upgrade will happen
 			continue;
 		}
 
-		auto recipe = buildClass->IsChildOf(AFGBuildableConveyorBelt::StaticClass()) ? targetBeltRecipe : targetLiftRecipe;
-		if (!recipe)
-		{
-			continue;
-		}
-
 		bool out_result;
-		auto shoppingListObject_Class = Cast<UFGShoppingListObject_Class>(shoppingListComponent->GetShoppingListObjectFromClass(recipe, out_result));
+		auto shoppingListObject_Class = Cast<UFGShoppingListObject_Class>(shoppingListComponent->GetShoppingListObjectFromClass(targetRecipe, out_result));
 
 		if (!out_result)
 		{
 			shoppingListObject_Class = NewObject<UFGShoppingListObject_Class>(shoppingListComponent);
-			shoppingListObject_Class->SetSubClass(recipe);
+			shoppingListObject_Class->SetSubClass(targetRecipe);
 		}
 
 		// FShoppingListRecipeEntry recipeEntry(recipe, 0);
 
-		for (auto conveyor : info.conveyors)
+		for (auto conveyor : info.buildables)
 		{
 			shoppingListObject_Class->IncreaseAmount(conveyor->GetDismantleRefundReturnsMultiplier());
 		}
