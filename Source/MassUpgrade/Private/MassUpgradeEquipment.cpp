@@ -2,7 +2,13 @@
 
 #include "FGPlayerController.h"
 #include "Buildables/FGBuildableConveyorBase.h"
-#include "Logic/ConveyorProductionInfoAccessor.h"
+#include "Buildables/FGBuildablePipeBase.h"
+#include "Buildables/FGBuildablePipeline.h"
+#include "Buildables/FGBuildablePipelinePump.h"
+#include "Buildables/FGBuildablePowerPole.h"
+#include "Buildables/FGBuildableStorage.h"
+#include "Logic/ProductionInfoAccessor.h"
+#include "Subsystems/CommonInfoSubsystem.h"
 #include "Util/MULogging.h"
 #include "Util/MarcioCommonLibsUtils.h"
 #include "Util/MassUpgradeConfiguration.h"
@@ -59,35 +65,55 @@ void AMassUpgradeEquipment::Tick(float DeltaSeconds)
 
 	auto outline = GetInstigatorCharacter()->GetOutline();
 
-	auto hitActor = UMarcioCommonLibsUtils::GetHitActor(hit);
+	auto hitActor = Cast<AFGBuildable>(UMarcioCommonLibsUtils::GetHitActor(hit));
+	AFGBuildable* tempTargetBuildable = nullptr;
 
-	if (hitActor && playerController->WasInputKeyJustPressed(EKeys::NumPadZero))
+	if (hitActor)
 	{
-		UMarcioCommonLibsUtils::DumpUnknownClass(hitActor);
-		// ARecipeCopierLogic::DumpUnknownClass(hitActor);
-	}
+		if (playerController->WasInputKeyJustPressed(EKeys::NumPadZero))
+		{
+			UMarcioCommonLibsUtils::DumpUnknownClass(hitActor);
+		}
 
-	auto tempTargetConveyor = Cast<AFGBuildableConveyorBase>(hitActor);
+		auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
 
-	if (tempTargetConveyor != targetConveyor)
-	{
-		if (tempTargetConveyor)
+		if (hitActor->IsA(AFGBuildableConveyorBase::StaticClass()) ||
+			commonInfoSubsystem->IsStorageContainer(hitActor) ||
+			hitActor->IsA(AFGBuildablePipeline::StaticClass()) ||
+			commonInfoSubsystem->IsPowerPole(hitActor) ||
+			commonInfoSubsystem->IsPowerPoleWall(hitActor) ||
+			commonInfoSubsystem->IsPowerPoleWallDouble(hitActor) ||
+			commonInfoSubsystem->IsPowerTower(hitActor))
+		{
+			tempTargetBuildable = hitActor;
+		}
+		if (!tempTargetBuildable)
+		{
+			auto pump = Cast<AFGBuildablePipelinePump>(hitActor);
+
+			if (pump && pump->GetDesignHeadLift() > 0)
+			{
+				tempTargetBuildable = pump;
+			}
+		}
+
+		if (tempTargetBuildable && tempTargetBuildable != targetBuildable)
 		{
 			MU_LOG_Display_Condition(
 				*getTagName(),
 				TEXT("Targeted new building = "),
-				*GetPathNameSafe(tempTargetConveyor),
+				*GetPathNameSafe(tempTargetBuildable),
 				TEXT(" / "),
 				*getAuthorityAndPlayer(this)
 				);
 
-			setBuildDescriptor(tempTargetConveyor->GetBuiltWithDescriptor());
+			setBuildDescriptor(tempTargetBuildable->GetBuiltWithDescriptor());
 		}
 	}
 
-	targetConveyor = tempTargetConveyor;
+	targetBuildable = tempTargetBuildable;
 
-	if (!targetConveyor)
+	if (!targetBuildable)
 	{
 		outline->HideOutline();
 
@@ -96,7 +122,7 @@ void AMassUpgradeEquipment::Tick(float DeltaSeconds)
 		return;
 	}
 
-	outline->ShowOutline(targetConveyor, EOutlineColor::OC_USABLE);
+	outline->ShowOutline(targetBuildable, EOutlineColor::OC_USABLE);
 
 	pointLight->SetIntensity(50);
 	pointLight->SetLightColor(FColor(0x0, 0xff, 0x0, 0xff));
@@ -109,25 +135,33 @@ void AMassUpgradeEquipment::PrimaryFirePressed()
 		TEXT("PrimaryFirePressed = "),
 		*GetPathName(),
 		TEXT(" / Target = "),
-		*GetPathNameSafe(targetConveyor),
+		*GetPathNameSafe(targetBuildable),
 		TEXT(" / "),
 		*getAuthorityAndPlayer(this)
 		);
 
-	if (!targetConveyor)
+	if (!targetBuildable)
 	{
 		return;
 	}
 
-	// infos.Empty();
-	//
-	// UConveyorProductionInfoAccessor::CollectConveyorProductionInfo(
-	// 	targetConveyor,
-	// 	crossAttachmentsAndStorages,
-	// 	infos
-	// 	);
+	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
 
-	ShowPopupWidget();
+	if (targetBuildable->IsA(AFGBuildableConveyorBase::StaticClass()) || commonInfoSubsystem->IsStorageContainer(targetBuildable))
+	{
+		ShowConveyorPopupWidget();
+	}
+	else if (targetBuildable->IsA(AFGBuildablePipeline::StaticClass()) || targetBuildable->IsA(AFGBuildablePipelinePump::StaticClass()))
+	{
+		ShowPipelinePopupWidget();
+	}
+	else if (commonInfoSubsystem->IsPowerPole(targetBuildable) ||
+		commonInfoSubsystem->IsPowerPoleWall(targetBuildable) ||
+		commonInfoSubsystem->IsPowerPoleWallDouble(targetBuildable) ||
+		commonInfoSubsystem->IsPowerTower(targetBuildable))
+	{
+		ShowPowerPolePopupWidget();
+	}
 }
 
 #ifndef OPTIMIZE

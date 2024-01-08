@@ -26,18 +26,80 @@ void UMassUpgradeRCO::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	DOREPLIFETIME(UMassUpgradeRCO, dummy);
 }
 
+void UMassUpgradeRCO::UpgradePowerPoles_Implementation
+(
+	AFGCharacterPlayer* player,
+	TSubclassOf<UFGRecipe> newPowerPoleTypeRecipe,
+	TSubclassOf<UFGRecipe> newPowerPoleWallTypeRecipe,
+	TSubclassOf<UFGRecipe> newPowerPoleWallDoubleTypeRecipe,
+	TSubclassOf<UFGRecipe> newPowerTowerTypeRecipe,
+	const TArray<FProductionInfo>& infos
+)
+{
+	UMassUpgradeLogic::UpgradePowerPoles_Server(
+		player,
+		newPowerPoleTypeRecipe,
+		newPowerPoleWallTypeRecipe,
+		newPowerPoleWallDoubleTypeRecipe,
+		newPowerTowerTypeRecipe,
+		infos
+		);
+}
+
+bool UMassUpgradeRCO::UpgradePowerPoles_Validate
+(
+	AFGCharacterPlayer* player,
+	TSubclassOf<UFGRecipe> newPowerPoleTypeRecipe,
+	TSubclassOf<UFGRecipe> newPowerPoleWallTypeRecipe,
+	TSubclassOf<UFGRecipe> newPowerPoleWallDoubleTypeRecipe,
+	TSubclassOf<UFGRecipe> newPowerTowerTypeRecipe,
+	const TArray<FProductionInfo>& infos
+)
+{
+	return true;
+}
+
+void UMassUpgradeRCO::UpgradePipelines_Implementation
+(
+	AFGCharacterPlayer* player,
+	TSubclassOf<UFGRecipe> newPipelineTypeRecipe,
+	TSubclassOf<UFGRecipe> newPumpTypeRecipe,
+	const TArray<FProductionInfo>& infos
+)
+{
+	UMassUpgradeLogic::UpgradePipelines_Server(
+		player,
+		newPipelineTypeRecipe,
+		newPumpTypeRecipe,
+		infos
+		);
+}
+
+bool UMassUpgradeRCO::UpgradePipelines_Validate
+(
+	AFGCharacterPlayer* player,
+	TSubclassOf<UFGRecipe> newPipelineTypeRecipe,
+	TSubclassOf<UFGRecipe> newPumpTypeRecipe,
+	const TArray<FProductionInfo>& infos
+)
+{
+	return true;
+}
+
 void UMassUpgradeRCO::UpgradeConveyors_Implementation
 (
 	AFGCharacterPlayer* player,
-	 TSubclassOf<UFGRecipe> newBeltTypeRecipe,
-	 TSubclassOf<UFGRecipe>newLiftTypeRecipe,
-	const TArray<FConveyorProductionInfo>& infos
+	TSubclassOf<UFGRecipe> newBeltTypeRecipe,
+	TSubclassOf<UFGRecipe> newLiftTypeRecipe,
+	TSubclassOf<UFGRecipe> newStorageTypeRecipe,
+	const TArray<FProductionInfo>& infos
 )
 {
 	UMassUpgradeLogic::UpgradeConveyors_Server(
 		player,
 		newBeltTypeRecipe,
 		newLiftTypeRecipe,
+		newStorageTypeRecipe,
 		infos
 		);
 }
@@ -45,9 +107,10 @@ void UMassUpgradeRCO::UpgradeConveyors_Implementation
 bool UMassUpgradeRCO::UpgradeConveyors_Validate
 (
 	AFGCharacterPlayer* player,
-	 TSubclassOf<UFGRecipe> newBeltTypeRecipe,
-	 TSubclassOf<UFGRecipe> newLiftTypeRecipe,
-	const TArray<FConveyorProductionInfo>& infos
+	TSubclassOf<UFGRecipe> newBeltTypeRecipe,
+	TSubclassOf<UFGRecipe> newLiftTypeRecipe,
+	TSubclassOf<UFGRecipe> newStorageTypeRecipe,
+	const TArray<FProductionInfo>& infos
 )
 {
 	return true;

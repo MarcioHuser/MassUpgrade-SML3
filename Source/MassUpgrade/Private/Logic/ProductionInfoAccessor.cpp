@@ -17,10 +17,20 @@
 
 #include <map>
 
+#include "FGCircuitSubsystem.h"
 #include "FGPipeConnectionComponent.h"
+#include "FGPowerConnectionComponent.h"
+#include "FGRailroadSubsystem.h"
+#include "FGTrainStationIdentifier.h"
+#include "Buildables/FGBuildableCircuitBridge.h"
+#include "Buildables/FGBuildableDockingStation.h"
 #include "Buildables/FGBuildablePipeBase.h"
 #include "Buildables/FGBuildablePipeline.h"
 #include "Buildables/FGBuildablePipelinePump.h"
+#include "Buildables/FGBuildablePipeReservoir.h"
+#include "Buildables/FGBuildablePowerPole.h"
+#include "Buildables/FGBuildableRailroadStation.h"
+#include "Buildables/FGBuildableTrainPlatformCargo.h"
 
 #ifndef OPTIMIZE
 #pragma optimize("", off)
@@ -33,7 +43,7 @@ void UProductionInfoAccessor::GetRefundableItems
 	const FProductionInfo& productionInfo,
 	TMap<TSubclassOf<UFGItemDescriptor>, int32>& itemsToRefund,
 	TMap<TSubclassOf<UFGItemDescriptor>, int32>& upgradeCost,
-	float& length
+	float& amount
 )
 {
 	auto newType = newTypeRecipe ? AFGBuildable::GetBuildableClassFromRecipe(newTypeRecipe) : nullptr;
@@ -47,17 +57,17 @@ void UProductionInfoAccessor::GetRefundableItems
 
 		if (auto conveyor = Cast<AFGBuildableConveyorBase>(buildable))
 		{
-			length += conveyor->GetLength();
+			amount += conveyor->GetLength() / 100;
 			multiplier = buildable->GetDismantleRefundReturnsMultiplier();
 		}
 		else if (auto pipe = Cast<AFGBuildablePipeBase>(buildable))
 		{
-			length += pipe->GetLength();
+			amount += pipe->GetLength() / 100;
 			multiplier = pipe->GetDismantleRefundReturnsMultiplier();
 		}
 		else
 		{
-			length += 1;
+			amount += 1;
 		}
 
 		auto buildableClass = buildable->GetClass();
@@ -126,8 +136,6 @@ bool UProductionInfoAccessor::CanAffordUpgrade
 
 	if (!gameState->GetCheatNoCost())
 	{
-		auto hasSomeCost = false;
-
 		// Must afford all to be true
 		for (const auto& entry : upgradeCost)
 		{
@@ -135,11 +143,7 @@ bool UProductionInfoAccessor::CanAffordUpgrade
 			{
 				return false;
 			}
-
-			hasSomeCost |= entry.Value > 0;
 		}
-
-		return hasSomeCost;
 	}
 
 	// Must refund something to be true
@@ -156,7 +160,6 @@ bool UProductionInfoAccessor::CanAffordUpgrade
 		return true;
 	}
 
-	// If we got here, we have nothing to refund or upgrade
 	return false;
 }
 
@@ -166,16 +169,17 @@ void UProductionInfoAccessor::CollectConveyorProductionInfo
 	bool includeBelts,
 	bool includeLifts,
 	bool includeStorages,
+	const TSet<TSubclassOf<class UFGBuildDescriptor>> selectedTypes,
 	bool crossAttachmentsAndStorages,
 	TArray<FProductionInfo>& infos
 )
 {
-	if (!targetBuildable || !targetBuildable->IsA(AFGBuildableConveyorBase::StaticClass()) && !targetBuildable->IsA(AFGBuildableStorage::StaticClass()))
+	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
+
+	if (!GetValid(targetBuildable) || !targetBuildable->IsA(AFGBuildableConveyorBase::StaticClass()) && !commonInfoSubsystem->IsStorageContainer(targetBuildable))
 	{
 		return;
 	}
-
-	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
 
 	std::map<TSubclassOf<AFGBuildable>, FProductionInfo> infosMap;
 
@@ -201,33 +205,35 @@ void UProductionInfoAccessor::CollectConveyorProductionInfo
 
 		if (includeBelts && buildable->IsA(AFGBuildableConveyorBelt::StaticClass()) ||
 			includeLifts && buildable->IsA(AFGBuildableConveyorLift::StaticClass()) ||
-			includeStorages && buildable->IsA(AFGBuildableStorage::StaticClass()) &&
-			(buildable->GetClass()->GetPathName() == "/Game/FactoryGame/Buildable/Factory/StorageContainerMk1/Build_StorageContainerMk1.Build_StorageContainerMk1_C" ||
-				buildable->GetClass()->GetPathName() == "/Game/FactoryGame/Buildable/Factory/StorageContainerMk2/Build_StorageContainerMk2.Build_StorageContainerMk2_C"))
+			includeStorages && commonInfoSubsystem->IsStorageContainer(buildable) &&
+			commonInfoSubsystem->IsStorageContainer(buildable))
 		{
 			info.buildables.Add(buildable);
 		}
 
 		TSet<UFGFactoryConnectionComponent*> components;
 
-		if (commonInfoSubsystem->baseStorageTeleporterClass && buildable->IsA(commonInfoSubsystem->baseStorageTeleporterClass))
+		if (commonInfoSubsystem->IsStorageTeleporter(buildable))
 		{
 			handleStorageTeleporter(buildable, components);
 		}
-		else if (commonInfoSubsystem->baseModularLoadBalancerClass && buildable->IsA(commonInfoSubsystem->baseModularLoadBalancerClass))
+		else if (commonInfoSubsystem->IsModularLoadBalancer(buildable))
 		{
 			if (auto modularLoadBalancer = FReflectionHelper::GetObjectPropertyValue<AFGBuildableFactory>(buildable, TEXT("GroupLeader")))
 			{
 				handleModularLoadBalancerComponents(modularLoadBalancer, components);
 			}
 		}
-		else if (commonInfoSubsystem->baseUndergroundSplitterInputClass && buildable->IsA(commonInfoSubsystem->baseUndergroundSplitterInputClass) ||
-			commonInfoSubsystem->baseUndergroundSplitterOutputClass && buildable->IsA(commonInfoSubsystem->baseUndergroundSplitterOutputClass))
+		else if (commonInfoSubsystem->IsUndergroundSplitter(buildable))
 		{
 			if (auto undergroundBelt = Cast<AFGBuildableStorage>(buildable))
 			{
 				handleUndergroundBeltsComponents(undergroundBelt, components);
 			}
+		}
+		else if (auto trainPlatformCargo = Cast<AFGBuildableTrainPlatformCargo>(buildable))
+		{
+			handleTrainPlatformCargoConveyor(trainPlatformCargo, components);
 		}
 		else
 		{
@@ -252,11 +258,11 @@ void UProductionInfoAccessor::CollectConveyorProductionInfo
 			if (!otherBuildable->IsA(AFGBuildableConveyorBase::StaticClass()) &&
 				!(crossAttachmentsAndStorages && (
 						otherBuildable->IsA(AFGBuildableConveyorAttachment::StaticClass()) ||
-						otherBuildable->IsA(AFGBuildableStorage::StaticClass()) ||
-						commonInfoSubsystem->baseStorageTeleporterClass && otherBuildable->IsA(commonInfoSubsystem->baseStorageTeleporterClass) ||
-						commonInfoSubsystem->baseModularLoadBalancerClass && otherBuildable->IsA(commonInfoSubsystem->baseModularLoadBalancerClass) ||
-						commonInfoSubsystem->baseUndergroundSplitterInputClass && otherBuildable->IsA(commonInfoSubsystem->baseUndergroundSplitterInputClass) ||
-						commonInfoSubsystem->baseUndergroundSplitterOutputClass && otherBuildable->IsA(commonInfoSubsystem->baseUndergroundSplitterOutputClass)
+						otherBuildable->IsA(AFGBuildableTrainPlatformCargo::StaticClass()) ||
+						commonInfoSubsystem->IsStorageContainer(otherBuildable) ||
+						commonInfoSubsystem->IsStorageTeleporter(otherBuildable) ||
+						commonInfoSubsystem->IsModularLoadBalancer(otherBuildable) ||
+						commonInfoSubsystem->IsUndergroundSplitter(otherBuildable)
 					)
 				))
 			{
@@ -276,7 +282,7 @@ void UProductionInfoAccessor::CollectConveyorProductionInfo
 
 	for (const auto& entry : infosMap)
 	{
-		if (entry.second.buildables.IsEmpty())
+		if (entry.second.buildables.IsEmpty() || selectedTypes.Contains(entry.second.buildableType))
 		{
 			continue;
 		}
@@ -292,7 +298,7 @@ void UProductionInfoAccessor::CollectConveyorProductionInfo
 		Storage,
 	};
 
-	auto getBuildableType = [](const TSubclassOf<AActor>& buildableType)
+	auto getBuildableType = [commonInfoSubsystem](const TSubclassOf<AActor>& buildableType)
 	{
 		if (buildableType->IsChildOf(AFGBuildableConveyorBelt::StaticClass()))
 		{
@@ -304,7 +310,7 @@ void UProductionInfoAccessor::CollectConveyorProductionInfo
 			return BuildableType::Lift;
 		}
 
-		if (buildableType->IsChildOf(AFGBuildableStorage::StaticClass()))
+		if (commonInfoSubsystem->IsStorageContainer(nullptr, buildableType))
 		{
 			return BuildableType::Storage;
 		}
@@ -313,10 +319,10 @@ void UProductionInfoAccessor::CollectConveyorProductionInfo
 	};
 
 	infos.Sort(
-		[&getBuildableType](const FProductionInfo& conveyor1, const FProductionInfo& conveyor2)
+		[&getBuildableType](const FProductionInfo& buildable1, const FProductionInfo& buildable2)
 		{
-			auto buildClass1 = UFGBuildDescriptor::GetBuildClass(conveyor1.buildableType);
-			auto buildClass2 = UFGBuildDescriptor::GetBuildClass(conveyor2.buildableType);
+			auto buildClass1 = UFGBuildDescriptor::GetBuildClass(buildable1.buildableType);
+			auto buildClass2 = UFGBuildDescriptor::GetBuildClass(buildable2.buildableType);
 
 			auto type1 = getBuildableType(buildClass1);
 			auto type2 = getBuildableType(buildClass2);
@@ -350,11 +356,12 @@ void UProductionInfoAccessor::CollectPipelineProductionInfo
 	AFGBuildable* targetBuildable,
 	bool includePipelines,
 	bool includePumps,
+	const TSet<TSubclassOf<class UFGBuildDescriptor>> selectedTypes,
 	bool crossAttachmentsAndStorages,
 	TArray<FProductionInfo>& infos
 )
 {
-	if (!targetBuildable || !targetBuildable->IsA(AFGBuildablePipeline::StaticClass()) && !targetBuildable->IsA(AFGBuildablePipelinePump::StaticClass()))
+	if (!GetValid(targetBuildable) || !targetBuildable->IsA(AFGBuildablePipeline::StaticClass()) && !targetBuildable->IsA(AFGBuildablePipelinePump::StaticClass()))
 	{
 		return;
 	}
@@ -381,26 +388,36 @@ void UProductionInfoAccessor::CollectPipelineProductionInfo
 			continue;
 		}
 
-		if(includePipelines)
+		if (includePipelines)
 		{
 			if (auto pipeline = Cast<AFGBuildablePipeline>(buildable))
 			{
 				info.buildables.Add(buildable);
 			}
 		}
-		if(includePump)
+		if (includePumps)
 		{
 			if (auto pump = Cast<AFGBuildablePipelinePump>(buildable))
 			{
-				if(pump->GetDesignHeadLift() > 0)
+				if (pump->GetDesignHeadLift() > 0)
 				{
 					info.buildables.Add(pump);
 				}
 			}
 		}
 
-		TArray<UFGPipeConnectionComponent*> components;
-		buildable->GetComponents(components);
+		TSet<UFGPipeConnectionComponent*> components;
+
+		if (auto trainPlatformCargo = Cast<AFGBuildableTrainPlatformCargo>(buildable))
+		{
+			handleTrainPlatformCargoPipeline(trainPlatformCargo, components);
+		}
+		else
+		{
+			TArray<UFGPipeConnectionComponent*> tempComponents;
+			buildable->GetComponents(tempComponents);
+			components.Append(tempComponents);
+		}
 
 		for (const auto& component : components)
 		{
@@ -416,9 +433,12 @@ void UProductionInfoAccessor::CollectPipelineProductionInfo
 			}
 
 			if (!otherBuildable->IsA(AFGBuildablePipeline::StaticClass()) &&
+				!otherBuildable->IsA(AFGBuildablePassthrough::StaticClass()) &&
 				!(crossAttachmentsAndStorages && (
+						otherBuildable->IsA(AFGBuildableTrainPlatformCargo::StaticClass()) ||
 						otherBuildable->IsA(AFGBuildablePipelinePump::StaticClass()) ||
-						otherBuildable->IsA(AFGBuildablePipelineAttachment::StaticClass())
+						otherBuildable->IsA(AFGBuildablePipelineAttachment::StaticClass()) ||
+						otherBuildable->IsA(AFGBuildablePipeReservoir::StaticClass())
 					)
 				))
 			{
@@ -438,7 +458,7 @@ void UProductionInfoAccessor::CollectPipelineProductionInfo
 
 	for (const auto& entry : infosMap)
 	{
-		if (entry.second.buildables.IsEmpty())
+		if (entry.second.buildables.IsEmpty() || selectedTypes.Contains(entry.second.buildableType))
 		{
 			continue;
 		}
@@ -469,10 +489,10 @@ void UProductionInfoAccessor::CollectPipelineProductionInfo
 	};
 
 	infos.Sort(
-		[&getBuildableType](const FProductionInfo& conveyor1, const FProductionInfo& conveyor2)
+		[&getBuildableType](const FProductionInfo& buildable1, const FProductionInfo& buildable2)
 		{
-			auto buildClass1 = UFGBuildDescriptor::GetBuildClass(conveyor1.buildableType);
-			auto buildClass2 = UFGBuildDescriptor::GetBuildClass(conveyor2.buildableType);
+			auto buildClass1 = UFGBuildDescriptor::GetBuildClass(buildable1.buildableType);
+			auto buildClass2 = UFGBuildDescriptor::GetBuildClass(buildable2.buildableType);
 
 			auto type1 = getBuildableType(buildClass1);
 			auto type2 = getBuildableType(buildClass2);
@@ -496,6 +516,188 @@ void UProductionInfoAccessor::CollectPipelineProductionInfo
 
 					order = storage1->GetMaxHeadLift() - storage2->GetMaxHeadLift();
 				}
+			}
+
+			return order < 0;
+		}
+		);
+}
+
+void UProductionInfoAccessor::CollectPowerPoleProductionInfo
+(
+	AFGBuildable* targetBuildable,
+	bool includePowerPoles,
+	bool includePowerPoleWalls,
+	bool includePowerPoleWallDoubles,
+	bool includePowerTowers,
+	const TSet<TSubclassOf<UFGBuildDescriptor>> selectedTypes,
+	bool crossAttachmentsAndStorages,
+	TArray<FProductionInfo>& infos
+)
+{
+	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
+
+	if (!GetValid(targetBuildable) ||
+		!commonInfoSubsystem->IsPowerPole(targetBuildable) &&
+		!commonInfoSubsystem->IsPowerPoleWall(targetBuildable) &&
+		!commonInfoSubsystem->IsPowerPoleWallDouble(targetBuildable) &&
+		!commonInfoSubsystem->IsPowerTower(targetBuildable))
+	{
+		return;
+	}
+
+	std::map<TSubclassOf<AFGBuildable>, FProductionInfo> infosMap;
+
+	TSet<AFGBuildable*> seenBuildable;
+	TSet<AFGBuildable*> pendingBuildable;
+
+	seenBuildable.Add(targetBuildable);
+	pendingBuildable.Add(targetBuildable);
+
+	while (!pendingBuildable.IsEmpty())
+	{
+		auto buildable = *pendingBuildable.begin();
+		pendingBuildable.Remove(buildable);
+
+		auto& info = infosMap[buildable->GetClass()];
+		info.buildableType = buildable->GetBuiltWithDescriptor<UFGBuildDescriptor>();
+
+		if (info.buildables.Contains(buildable))
+		{
+			// Already processed. Skip to next buildable
+			continue;
+		}
+
+		if (includePowerPoles)
+		{
+			if (commonInfoSubsystem->IsPowerPole(buildable))
+			{
+				info.buildables.Add(buildable);
+			}
+		}
+		if (includePowerPoleWalls)
+		{
+			if (commonInfoSubsystem->IsPowerPoleWall(buildable))
+			{
+				info.buildables.Add(buildable);
+			}
+		}
+		if (includePowerPoleWallDoubles)
+		{
+			if (commonInfoSubsystem->IsPowerPoleWallDouble(buildable))
+			{
+				info.buildables.Add(buildable);
+			}
+		}
+		if (includePowerTowers)
+		{
+			if (commonInfoSubsystem->IsPowerTower(buildable))
+			{
+				info.buildables.Add(buildable);
+			}
+		}
+
+		TSet<UFGPowerConnectionComponent*> components;
+
+		if (auto station = Cast<AFGBuildableRailroadStation>(buildable))
+		{
+			handleTrainPlatformCargoPowerPole(station, components);
+		}
+		else
+		{
+			TArray<UFGPowerConnectionComponent*> tempComponents;
+			buildable->GetComponents(tempComponents);
+			components.Append(tempComponents);
+		}
+
+		for (const auto& component : components)
+		{
+			TArray<UFGCircuitConnectionComponent*> connections;
+			component->GetConnections(connections);
+
+			for (const auto& connection : connections)
+			{
+				auto otherBuildable = Cast<AFGBuildable>(connection->GetOwner());
+				if (!otherBuildable)
+				{
+					continue;
+				}
+
+				if (!crossAttachmentsAndStorages && (
+					otherBuildable->IsA(AFGBuildableCircuitBridge::StaticClass()) ||
+					otherBuildable->IsA(AFGBuildableRailroadStation::StaticClass())
+				))
+				{
+					// Bridge crossing is not enabled
+					continue;
+				}
+
+				if (seenBuildable.Contains(otherBuildable))
+				{
+					continue;
+				}
+
+				seenBuildable.Add(otherBuildable);
+				pendingBuildable.Add(otherBuildable);
+			}
+		}
+	}
+
+	for (const auto& entry : infosMap)
+	{
+		if (entry.second.buildables.IsEmpty() || selectedTypes.Contains(entry.second.buildableType))
+		{
+			continue;
+		}
+
+		infos.Add(entry.second);
+	}
+
+	enum BuildableType
+	{
+		Unknown,
+		PowerPole,
+		PowerPoleWall,
+		PowerPoleWallDouble,
+		PowerTower,
+	};
+
+	auto getBuildableType = [commonInfoSubsystem](const TSubclassOf<AActor>& buildableType)
+	{
+		if (commonInfoSubsystem->IsPowerPole(nullptr, buildableType))
+		{
+			return BuildableType::PowerPole;
+		}
+		if (commonInfoSubsystem->IsPowerPoleWall(nullptr, buildableType))
+		{
+			return BuildableType::PowerPoleWall;
+		}
+		if (commonInfoSubsystem->IsPowerPoleWallDouble(nullptr, buildableType))
+		{
+			return BuildableType::PowerPoleWallDouble;
+		}
+		if (commonInfoSubsystem->IsPowerTower(nullptr, buildableType))
+		{
+			return BuildableType::PowerTower;
+		}
+
+		return BuildableType::Unknown;
+	};
+
+	infos.Sort(
+		[&getBuildableType](const FProductionInfo& info1, const FProductionInfo& info2)
+		{
+			auto pole1 = Cast<AFGBuildablePowerPole>(*info1.buildables.begin());
+			auto pole2 = Cast<AFGBuildablePowerPole>(*info2.buildables.begin());
+
+			auto type1 = getBuildableType(pole1->GetClass());
+			auto type2 = getBuildableType(pole2->GetClass());
+
+			float order = type1 - type2;
+
+			if (order == 0)
+			{
+				order = pole1->GetPowerConnection(0)->GetMaxNumConnections() - pole2->GetPowerConnection(0)->GetMaxNumConnections();
 			}
 
 			return order < 0;
@@ -568,8 +770,7 @@ void UProductionInfoAccessor::handleUndergroundBeltsComponents
 
 	FScopeLock ScopeLock(&ACommonInfoSubsystem::mclCritical);
 
-	if (commonInfoSubsystem->baseUndergroundSplitterInputClass &&
-		undergroundBelt->IsA(commonInfoSubsystem->baseUndergroundSplitterInputClass))
+	if (commonInfoSubsystem->IsUndergroundSplitterInput(undergroundBelt))
 	{
 		auto outputsProperty = CastField<FArrayProperty>(undergroundBelt->GetClass()->FindPropertyByName("Outputs"));
 		if (!outputsProperty)
@@ -592,8 +793,7 @@ void UProductionInfoAccessor::handleUndergroundBeltsComponents
 			}
 		}
 	}
-	else if (commonInfoSubsystem->baseUndergroundSplitterOutputClass &&
-		undergroundBelt->IsA(commonInfoSubsystem->baseUndergroundSplitterOutputClass))
+	else if (commonInfoSubsystem->IsUndergroundSplitterOutput(undergroundBelt))
 	{
 		for (auto inputUndergroundBelt : commonInfoSubsystem->allUndergroundInputBelts)
 		{
@@ -657,6 +857,98 @@ void UProductionInfoAccessor::handleModularLoadBalancerComponents
 			modularLoadBalancer->GetComponents(tempComponents);
 			components.Append(tempComponents);
 		}
+	}
+}
+
+void UProductionInfoAccessor::handleTrainPlatformCargoConveyor(AFGBuildableTrainPlatformCargo* trainPlatformCargo, TSet<UFGFactoryConnectionComponent*>& components)
+{
+	auto railroadSubsystem = AFGRailroadSubsystem::Get(trainPlatformCargo->GetWorld());
+
+	auto trackId = trainPlatformCargo->GetTrackGraphID();
+
+	TArray<AFGTrainStationIdentifier*> stations;
+	railroadSubsystem->GetTrainStations(trackId, stations);
+
+	for (auto stationIdentifier : stations)
+	{
+		auto station = stationIdentifier->GetStation();
+
+		for (auto i = 0; i <= 1; i++)
+		{
+			TSet<AFGBuildableTrainPlatform*> seenPlatforms;
+
+			for (auto connectedPlatform = station->GetConnectedPlatformInDirectionOf(i);
+			     connectedPlatform;
+			     connectedPlatform = connectedPlatform->GetConnectedPlatformInDirectionOf(i))
+			{
+				if (seenPlatforms.Contains(connectedPlatform))
+				{
+					// Loop detected
+					break;
+				}
+
+				TArray<UFGFactoryConnectionComponent*> tempComponents;
+				connectedPlatform->GetComponents(tempComponents);
+
+				components.Append(tempComponents);
+			}
+		}
+	}
+}
+
+void UProductionInfoAccessor::handleTrainPlatformCargoPipeline(AFGBuildableTrainPlatformCargo* trainPlatformCargo, TSet<UFGPipeConnectionComponent*>& components)
+{
+	auto railroadSubsystem = AFGRailroadSubsystem::Get(trainPlatformCargo->GetWorld());
+
+	auto trackId = trainPlatformCargo->GetTrackGraphID();
+
+	TArray<AFGTrainStationIdentifier*> stations;
+	railroadSubsystem->GetTrainStations(trackId, stations);
+
+	for (auto stationIdentifier : stations)
+	{
+		auto station = stationIdentifier->GetStation();
+
+		for (auto i = 0; i <= 1; i++)
+		{
+			TSet<AFGBuildableTrainPlatform*> seenPlatforms;
+
+			for (auto connectedPlatform = station->GetConnectedPlatformInDirectionOf(i);
+			     connectedPlatform;
+			     connectedPlatform = connectedPlatform->GetConnectedPlatformInDirectionOf(i))
+			{
+				if (seenPlatforms.Contains(connectedPlatform))
+				{
+					// Loop detected
+					break;
+				}
+
+				TArray<UFGPipeConnectionComponent*> tempComponents;
+				connectedPlatform->GetComponents(tempComponents);
+
+				components.Append(tempComponents);
+			}
+		}
+	}
+}
+
+void UProductionInfoAccessor::handleTrainPlatformCargoPowerPole(AFGBuildableRailroadStation* station, TSet<UFGPowerConnectionComponent*>& components)
+{
+	auto railroadSubsystem = AFGRailroadSubsystem::Get(station->GetWorld());
+
+	auto trackId = station->GetTrackGraphID();
+
+	TArray<AFGTrainStationIdentifier*> stations;
+	railroadSubsystem->GetTrainStations(trackId, stations);
+
+	for (auto stationIdentifier : stations)
+	{
+		station = stationIdentifier->GetStation();
+
+		TArray<UFGPowerConnectionComponent*> tempComponents;
+		station->GetComponents(tempComponents);
+
+		components.Append(tempComponents);
 	}
 }
 

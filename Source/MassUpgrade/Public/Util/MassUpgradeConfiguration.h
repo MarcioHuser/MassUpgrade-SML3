@@ -24,7 +24,7 @@ public:
 		UPARAM(DisplayName = "Log Level") int& out_logLevel
 	);
 
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MassUpgradeConfiguration")
+	UFUNCTION(BlueprintCallable, Category = "MassUpgradeConfiguration", BlueprintPure)
 	static int GetLogLevelMU();
 
 public:

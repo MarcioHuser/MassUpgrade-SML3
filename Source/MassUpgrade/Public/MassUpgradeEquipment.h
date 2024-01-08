@@ -23,7 +23,13 @@ public:
 	static FString getAuthorityAndPlayer(const AActor* actor);
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "MassUpgrade")
-	void ShowPopupWidget();
+	void ShowConveyorPopupWidget();
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "MassUpgrade")
+	void ShowPipelinePopupWidget();
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "MassUpgrade")
+	void ShowPowerPolePopupWidget();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "MassUpgrade")
 	void setBuildDescriptor(TSubclassOf<UFGItemDescriptor> buildDescriptor);
@@ -37,13 +43,7 @@ public:
 	}
 
 	UPROPERTY(BlueprintReadWrite, Category = "MassUpgrade")
-	class AFGBuildableConveyorBase* targetConveyor = nullptr;
-
-	// UPROPERTY(BlueprintReadWrite, Category = "MassUpgrade")
-	// bool crossAttachmentsAndStorages = true;
-
-	// UPROPERTY(BlueprintReadWrite, Category = "MassUpgrade")
-	// TArray<struct FConveyorProductionInfo> infos;
+	class AFGBuildable* targetBuildable = nullptr;
 
 	UPROPERTY(BlueprintReadWrite)
 	class UPointLightComponent* pointLight = nullptr;

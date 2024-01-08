@@ -29,7 +29,28 @@ public:
 		class AFGCharacterPlayer* player,
 		TSubclassOf<UFGRecipe> newBeltTypeRecipe,
 		TSubclassOf<UFGRecipe> newLiftTypeRecipe,
-		const TArray<struct FConveyorProductionInfo>& infos
+		TSubclassOf<UFGRecipe> newStorageTypeRecipe,
+		const TArray<struct FProductionInfo>& infos
+	);
+
+	UFUNCTION(BlueprintCallable, Server, WithValidation, Reliable, Category="MassUpgrade")
+	void UpgradePipelines
+	(
+		class AFGCharacterPlayer* player,
+		TSubclassOf<UFGRecipe> newPipelineTypeRecipe,
+		TSubclassOf<UFGRecipe> newPumpTypeRecipe,
+		const TArray<struct FProductionInfo>& infos
+	);
+
+	UFUNCTION(BlueprintCallable, Server, WithValidation, Reliable, Category="MassUpgrade")
+	void UpgradePowerPoles
+	(
+		class AFGCharacterPlayer* player,
+		TSubclassOf<UFGRecipe> newPowerPoleTypeRecipe,
+		TSubclassOf<UFGRecipe> newPowerPoleWallTypeRecipe,
+		TSubclassOf<UFGRecipe> newPowerPoleWallDoubleTypeRecipe,
+		TSubclassOf<UFGRecipe> newPowerTowerTypeRecipe,
+		const TArray<struct FProductionInfo>& infos
 	);
 
 	UPROPERTY(Replicated)
