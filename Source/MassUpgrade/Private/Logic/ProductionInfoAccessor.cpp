@@ -205,8 +205,7 @@ void UProductionInfoAccessor::CollectConveyorProductionInfo
 
 		if (includeBelts && buildable->IsA(AFGBuildableConveyorBelt::StaticClass()) ||
 			includeLifts && buildable->IsA(AFGBuildableConveyorLift::StaticClass()) ||
-			includeStorages && commonInfoSubsystem->IsStorageContainer(buildable) &&
-			commonInfoSubsystem->IsStorageContainer(buildable))
+			includeStorages && commonInfoSubsystem->IsStorageContainer(buildable))
 		{
 			info.buildables.Add(buildable);
 		}
@@ -259,7 +258,7 @@ void UProductionInfoAccessor::CollectConveyorProductionInfo
 				!(crossAttachmentsAndStorages && (
 						otherBuildable->IsA(AFGBuildableConveyorAttachment::StaticClass()) ||
 						otherBuildable->IsA(AFGBuildableTrainPlatformCargo::StaticClass()) ||
-						commonInfoSubsystem->IsStorageContainer(otherBuildable) ||
+						otherBuildable->IsA(AFGBuildableStorage::StaticClass()) ||
 						commonInfoSubsystem->IsStorageTeleporter(otherBuildable) ||
 						commonInfoSubsystem->IsModularLoadBalancer(otherBuildable) ||
 						commonInfoSubsystem->IsUndergroundSplitter(otherBuildable)
