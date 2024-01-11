@@ -46,6 +46,7 @@ public:
 	void UpgradePowerPoles
 	(
 		class AFGCharacterPlayer* player,
+		TSubclassOf<UFGRecipe> newWireTypeRecipe,
 		TSubclassOf<UFGRecipe> newPowerPoleTypeRecipe,
 		TSubclassOf<UFGRecipe> newPowerPoleWallTypeRecipe,
 		TSubclassOf<UFGRecipe> newPowerPoleWallDoubleTypeRecipe,

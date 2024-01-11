@@ -31,6 +31,7 @@
 #include "Buildables/FGBuildablePowerPole.h"
 #include "Buildables/FGBuildableRailroadStation.h"
 #include "Buildables/FGBuildableTrainPlatformCargo.h"
+#include "Buildables/FGBuildableWire.h"
 
 #ifndef OPTIMIZE
 #pragma optimize("", off)
@@ -64,6 +65,11 @@ void UProductionInfoAccessor::GetRefundableItems
 		{
 			amount += pipe->GetLength() / 100;
 			multiplier = pipe->GetDismantleRefundReturnsMultiplier();
+		}
+		else if (auto wire = Cast<AFGBuildableWire>(buildable))
+		{
+			amount += wire->GetLength() / 100;
+			multiplier = wire->GetDismantleRefundReturnsMultiplier();
 		}
 		else
 		{
@@ -391,7 +397,7 @@ void UProductionInfoAccessor::CollectPipelineProductionInfo
 		{
 			if (auto pipeline = Cast<AFGBuildablePipeline>(buildable))
 			{
-				info.buildables.Add(buildable);
+				info.buildables.Add(pipeline);
 			}
 		}
 		if (includePumps)
@@ -525,6 +531,7 @@ void UProductionInfoAccessor::CollectPipelineProductionInfo
 void UProductionInfoAccessor::CollectPowerPoleProductionInfo
 (
 	AFGBuildable* targetBuildable,
+	bool includeWires,
 	bool includePowerPoles,
 	bool includePowerPoleWalls,
 	bool includePowerPoleWallDoubles,
@@ -639,12 +646,26 @@ void UProductionInfoAccessor::CollectPowerPoleProductionInfo
 				seenBuildable.Add(otherBuildable);
 				pendingBuildable.Add(otherBuildable);
 			}
+
+			if (includeWires)
+			{
+				TArray<AFGBuildableWire*> wires;
+				component->GetWires(wires);
+				for (auto wire : wires)
+				{
+					auto& infoWire = infosMap[wire->GetClass()];
+					infoWire.buildableType = wire->GetBuiltWithDescriptor<UFGBuildDescriptor>();
+					infoWire.buildables.Add(wire);
+				}
+			}
 		}
 	}
 
 	for (const auto& entry : infosMap)
 	{
-		if (entry.second.buildables.IsEmpty() || selectedTypes.Contains(entry.second.buildableType))
+		if (!entry.second.buildableType ||
+			entry.second.buildables.IsEmpty() ||
+			selectedTypes.Contains(entry.second.buildableType))
 		{
 			continue;
 		}
@@ -655,6 +676,7 @@ void UProductionInfoAccessor::CollectPowerPoleProductionInfo
 	enum BuildableType
 	{
 		Unknown,
+		Wire,
 		PowerPole,
 		PowerPoleWall,
 		PowerPoleWallDouble,
@@ -663,6 +685,10 @@ void UProductionInfoAccessor::CollectPowerPoleProductionInfo
 
 	auto getBuildableType = [commonInfoSubsystem](const TSubclassOf<AActor>& buildableType)
 	{
+		if (buildableType->IsChildOf(AFGBuildableWire::StaticClass()))
+		{
+			return BuildableType::Wire;
+		}
 		if (commonInfoSubsystem->IsPowerPole(nullptr, buildableType))
 		{
 			return BuildableType::PowerPole;
@@ -686,17 +712,28 @@ void UProductionInfoAccessor::CollectPowerPoleProductionInfo
 	infos.Sort(
 		[&getBuildableType](const FProductionInfo& info1, const FProductionInfo& info2)
 		{
-			auto pole1 = Cast<AFGBuildablePowerPole>(*info1.buildables.begin());
-			auto pole2 = Cast<AFGBuildablePowerPole>(*info2.buildables.begin());
+			auto buildable1 = Cast<AFGBuildable>(*info1.buildables.begin());
+			auto buildable2 = Cast<AFGBuildable>(*info2.buildables.begin());
 
-			auto type1 = getBuildableType(pole1->GetClass());
-			auto type2 = getBuildableType(pole2->GetClass());
+			auto type1 = getBuildableType(buildable1->GetClass());
+			auto type2 = getBuildableType(buildable2->GetClass());
 
 			float order = type1 - type2;
 
 			if (order == 0)
 			{
-				order = pole1->GetPowerConnection(0)->GetMaxNumConnections() - pole2->GetPowerConnection(0)->GetMaxNumConnections();
+				auto pole1 = Cast<AFGBuildablePowerPole>(buildable1);
+				auto pole2 = Cast<AFGBuildablePowerPole>(buildable2);
+
+				if (pole1 && pole2)
+				{
+					order = pole1->GetPowerConnection(0)->GetMaxNumConnections() - pole2->GetPowerConnection(0)->GetMaxNumConnections();
+				}
+			}
+
+			if (order == 0)
+			{
+				order = buildable1->GetClass()->GetName().Compare(buildable2->GetClass()->GetName());
 			}
 
 			return order < 0;
@@ -988,9 +1025,9 @@ void UProductionInfoAccessor::AddInfosToShoppingList(AFGCharacterPlayer* player,
 
 		// FShoppingListRecipeEntry recipeEntry(recipe, 0);
 
-		for (auto conveyor : info.buildables)
+		for (auto buildable : info.buildables)
 		{
-			shoppingListObject_Class->IncreaseAmount(conveyor->GetDismantleRefundReturnsMultiplier());
+			shoppingListObject_Class->IncreaseAmount(buildable->GetDismantleRefundReturnsMultiplier());
 		}
 	}
 }

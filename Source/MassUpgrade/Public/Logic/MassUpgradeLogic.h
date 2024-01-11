@@ -48,6 +48,7 @@ public:
 	static void UpgradePowerPoles
 	(
 		AFGCharacterPlayer* player,
+		const TSubclassOf<UFGRecipe>& newWireTypeRecipe,
 		const TSubclassOf<UFGRecipe>& newPowerPoleTypeRecipe,
 		const TSubclassOf<UFGRecipe>& newPowerPoleWallTypeRecipe,
 		const TSubclassOf<UFGRecipe>& newPowerPoleWallDoubleTypeRecipe,
@@ -57,6 +58,7 @@ public:
 	static void UpgradePowerPoles_Server
 	(
 		AFGCharacterPlayer* player,
+		const TSubclassOf<UFGRecipe>& newWireTypeRecipe,
 		const TSubclassOf<UFGRecipe>& newPowerPoleTypeRecipe,
 		const TSubclassOf<UFGRecipe>& newPowerPoleWallTypeRecipe,
 		const TSubclassOf<UFGRecipe>& newPowerPoleWallDoubleTypeRecipe,
@@ -93,6 +95,14 @@ public:
 		class AFGCharacterPlayer* player,
 		const TArray<class AFGBuildablePipelinePump*>& pumps,
 		TSubclassOf<UFGRecipe> newPumpTypeRecipe,
+		TMap<TSubclassOf<UFGItemDescriptor>, int32>& itemsToAddOrRemoveFromInventory
+	);
+
+	static int32 UpgradeWire
+	(
+		class AFGCharacterPlayer* player,
+		const TArray<class AFGBuildableWire*>& wires,
+		TSubclassOf<UFGRecipe> newWireTypeRecipe,
 		TMap<TSubclassOf<UFGItemDescriptor>, int32>& itemsToAddOrRemoveFromInventory
 	);
 

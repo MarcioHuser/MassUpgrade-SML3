@@ -29,6 +29,7 @@ void UMassUpgradeRCO::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 void UMassUpgradeRCO::UpgradePowerPoles_Implementation
 (
 	AFGCharacterPlayer* player,
+	TSubclassOf<UFGRecipe> newWireTypeRecipe,
 	TSubclassOf<UFGRecipe> newPowerPoleTypeRecipe,
 	TSubclassOf<UFGRecipe> newPowerPoleWallTypeRecipe,
 	TSubclassOf<UFGRecipe> newPowerPoleWallDoubleTypeRecipe,
@@ -38,6 +39,7 @@ void UMassUpgradeRCO::UpgradePowerPoles_Implementation
 {
 	UMassUpgradeLogic::UpgradePowerPoles_Server(
 		player,
+		newWireTypeRecipe,
 		newPowerPoleTypeRecipe,
 		newPowerPoleWallTypeRecipe,
 		newPowerPoleWallDoubleTypeRecipe,
@@ -49,6 +51,7 @@ void UMassUpgradeRCO::UpgradePowerPoles_Implementation
 bool UMassUpgradeRCO::UpgradePowerPoles_Validate
 (
 	AFGCharacterPlayer* player,
+	TSubclassOf<UFGRecipe> newWireTypeRecipe,
 	TSubclassOf<UFGRecipe> newPowerPoleTypeRecipe,
 	TSubclassOf<UFGRecipe> newPowerPoleWallTypeRecipe,
 	TSubclassOf<UFGRecipe> newPowerPoleWallDoubleTypeRecipe,

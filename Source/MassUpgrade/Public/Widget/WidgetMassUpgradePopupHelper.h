@@ -39,6 +39,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper")
 	static void GetPowerPolesByConnections
 	(
+		UPARAM(Ref) TArray<struct FComboBoxItem>& wireTypes,
 		UPARAM(Ref) TArray<struct FComboBoxItem>& powerPoleByConnection,
 		UPARAM(Ref) TArray<struct FComboBoxItem>& powerPoleWallByConnection,
 		UPARAM(Ref) TArray<struct FComboBoxItem>& powerPoleWallDoubleByConnection,
@@ -112,6 +113,9 @@ public:
 		int gridHeaderCount,
 		const float& iconSize,
 		AFGBuildable* targetBuildable,
+		bool includeWires,
+		UComboBoxKey* cmbWireMk,
+		const TArray<FComboBoxItem>& wireTypes,
 		bool includePowerPoles,
 		UComboBoxKey* cmbPowerPoleMk,
 		const TArray<struct FComboBoxItem>& powerPoleByConnection,
@@ -161,7 +165,7 @@ public:
 		const TArray<struct FComboBoxItem>& pumpByHeadLift,
 		const TArray<struct FProductionInfo>& infos,
 		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
-		);
+	);
 
 	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper")
 	static void AddPowerPoles
@@ -171,6 +175,8 @@ public:
 		class UButton* btnUpgradeBuildables,
 		int gridHeaderCount,
 		const float& iconSize,
+		const FName& wireMkType,
+		const TArray<FComboBoxItem>& wireTypes,
 		const FName& powerPoleMkType,
 		const TArray<struct FComboBoxItem>& powerPoleByConnection,
 		const FName& powerPoleWallMkType,
@@ -216,7 +222,8 @@ public:
 		const FName& indexName,
 		const FString& suffix,
 		TSubclassOf<UFGItemDescriptor> defaultBuildDescriptor,
-		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+		bool showItemName = true
 	);
 
 	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper", BlueprintPure)

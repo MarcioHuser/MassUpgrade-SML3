@@ -27,6 +27,9 @@
 #include <map>
 
 #include "FGPowerConnectionComponent.h"
+#include "Buildables/FGBuildableWall.h"
+#include "Buildables/FGBuildableWire.h"
+#include "Hologram/FGWireHologram.h"
 
 #ifndef OPTIMIZE
 #pragma optimize("", off)
@@ -155,6 +158,7 @@ void UWidgetMassUpgradePopupHelper::GetPipesBySpeed(TArray<struct FComboBoxItem>
 
 void UWidgetMassUpgradePopupHelper::GetPowerPolesByConnections
 (
+	TArray<FComboBoxItem>& wireTypes,
 	TArray<FComboBoxItem>& powerPoleByConnection,
 	TArray<FComboBoxItem>& powerPoleWallByConnection,
 	TArray<FComboBoxItem>& powerPoleWallDoubleByConnection,
@@ -166,6 +170,7 @@ void UWidgetMassUpgradePopupHelper::GetPowerPolesByConnections
 	TArray<TSubclassOf<UFGRecipe>> recipes;
 	recipeManager->GetAllAvailableRecipes(recipes);
 
+	wireTypes.Empty();
 	powerPoleByConnection.Empty();
 	powerPoleWallByConnection.Empty();
 	powerPoleWallDoubleByConnection.Empty();
@@ -187,6 +192,10 @@ void UWidgetMassUpgradePopupHelper::GetPowerPolesByConnections
 		if (!buildClass)
 		{
 			continue;
+		}
+		else if (buildClass->IsChildOf(AFGBuildableWire::StaticClass()))
+		{
+			wireTypes.Add(FComboBoxItem(recipe, 0));
 		}
 		else if (commonInfoSubsystem->IsPowerPole(nullptr, buildClass))
 		{
@@ -228,9 +237,25 @@ void UWidgetMassUpgradePopupHelper::GetPowerPolesByConnections
 
 	auto sortComboBoxItem = [](const FComboBoxItem& x, const FComboBoxItem& y)
 	{
-		return x.amount - y.amount < 0;
+		auto recipeX = AFGBuildable::GetBuildableClassFromRecipe(x.recipe);
+		auto recipeY = AFGBuildable::GetBuildableClassFromRecipe(y.recipe);
+
+		auto order = 0;
+
+		if (recipeX->IsChildOf(AFGBuildableWire::StaticClass()) && recipeY->IsChildOf(AFGBuildableWire::StaticClass()))
+		{
+			order = recipeX->GetName().Compare(recipeY->GetName());
+		}
+
+		if (!order)
+		{
+			order = x.amount - y.amount;
+		}
+
+		return order < 0;
 	};
 
+	wireTypes.Sort(sortComboBoxItem);
 	powerPoleByConnection.Sort(sortComboBoxItem);
 	powerPoleWallByConnection.Sort(sortComboBoxItem);
 	powerPoleWallDoubleByConnection.Sort(sortComboBoxItem);
@@ -493,6 +518,9 @@ void UWidgetMassUpgradePopupHelper::HandleConstructPowerPolePopup
 	int gridHeaderCount,
 	const float& iconSize,
 	AFGBuildable* targetBuildable,
+	bool includeWires,
+	UComboBoxKey* cmbWireMk,
+	const TArray<FComboBoxItem>& wireTypes,
 	bool includePowerPoles,
 	UComboBoxKey* cmbPowerPoleMk,
 	const TArray<FComboBoxItem>& powerPoleByConnection,
@@ -520,10 +548,27 @@ void UWidgetMassUpgradePopupHelper::HandleConstructPowerPolePopup
 	TArray<float> keys;
 
 	auto powerPole = Cast<AFGBuildablePowerPole>(targetBuildable);
+	auto wire = Cast<AFGBuildableWire>(targetBuildable);
 
 	TSet<TSubclassOf<class UFGBuildDescriptor>> selectedTypes;
 
 	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
+
+	if (cmbWireMk)
+	{
+		InitializeComboBox(
+			cmbWireMk,
+			wireTypes,
+			0,
+			wire
+			);
+
+		auto products = UFGRecipe::GetProducts(GetSelectedRecipe(cmbWireMk->GetSelectedOption(), wireTypes));
+		if (!products.IsEmpty())
+		{
+			selectedTypes.Add(*products[0].ItemClass);
+		}
+	}
 
 	if (cmbPowerPoleMk)
 	{
@@ -591,6 +636,7 @@ void UWidgetMassUpgradePopupHelper::HandleConstructPowerPolePopup
 
 	UProductionInfoAccessor::CollectPowerPoleProductionInfo(
 		targetBuildable,
+		includeWires,
 		includePowerPoles,
 		includePowerPoleWalls,
 		includePowerPoleWallDoubles,
@@ -606,6 +652,8 @@ void UWidgetMassUpgradePopupHelper::HandleConstructPowerPolePopup
 		btnUpgradeBuildables,
 		gridHeaderCount,
 		iconSize,
+		cmbWireMk ? cmbWireMk->GetSelectedOption() : FName(),
+		wireTypes,
 		cmbPowerPoleMk ? cmbPowerPoleMk->GetSelectedOption() : FName(),
 		powerPoleByConnection,
 		cmbPowerPoleWallMk ? cmbPowerPoleWallMk->GetSelectedOption() : FName(),
@@ -1167,6 +1215,8 @@ void UWidgetMassUpgradePopupHelper::AddPowerPoles
 	UButton* btnUpgradeBuildables,
 	int gridHeaderCount,
 	const float& iconSize,
+	const FName& wireMkType,
+	const TArray<FComboBoxItem>& wireTypes,
 	const FName& powerPoleMkType,
 	const TArray<FComboBoxItem>& powerPoleByConnection,
 	const FName& powerPoleWallMkType,
@@ -1195,6 +1245,10 @@ void UWidgetMassUpgradePopupHelper::AddPowerPoles
 			if (!buildClass)
 			{
 				return TSubclassOf<UFGRecipe>();
+			}
+			else if (buildClass->IsChildOf(AFGBuildableWire::StaticClass()))
+			{
+				return GetSelectedRecipe(wireMkType, wireTypes);
 			}
 			else if (commonInfoSubsystem->IsPowerPole(nullptr, buildClass))
 			{
@@ -1470,7 +1524,8 @@ UWidget* UWidgetMassUpgradePopupHelper::CreateMkComboBoxItemWidget
 	const FName& indexName,
 	const FString& suffix,
 	TSubclassOf<UFGItemDescriptor> defaultBuildDescriptor,
-	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+	bool showItemName
 )
 {
 	auto cbItem = GetSelectedComboBoxItem(indexName, comboBoxItems);
@@ -1491,15 +1546,19 @@ UWidget* UWidgetMassUpgradePopupHelper::CreateMkComboBoxItemWidget
 
 	if (defaultBuildDescriptor && createWidgetItemIconWithLabel.IsBound())
 	{
+		auto buildClass = UFGBuildDescriptor::GetBuildClass(*defaultBuildDescriptor);
+
 		widget = createWidgetItemIconWithLabel.Execute(
-			true,
+			showItemName,
 			UFGItemDescriptor::GetBigIcon(defaultBuildDescriptor),
 			48,
-			FText::Format(
-				FTextFormat::FromString(TEXT("{0} {1}")),
-				cbItem.amount,
-				FText::FromString(suffix)
-				)
+			buildClass && buildClass->IsChildOf(AFGBuildableWire::StaticClass())
+				? UFGItemDescriptor::GetItemName(defaultBuildDescriptor)
+				: FText::Format(
+					FTextFormat::FromString(TEXT("{0} {1}")),
+					cbItem.amount,
+					FText::FromString(suffix)
+					)
 			);
 	}
 	else

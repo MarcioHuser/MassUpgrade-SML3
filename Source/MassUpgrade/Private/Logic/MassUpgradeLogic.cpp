@@ -20,7 +20,6 @@
 #include "Buildables/FGBuildablePowerPole.h"
 #include "Buildables/FGBuildableStorage.h"
 #include "Buildables/FGBuildableWire.h"
-#include "Hologram/FGBuildableHologram.h"
 #include "Hologram/FGHologram.h"
 #include "Model/ProductionInfo.h"
 #include "Resources/FGBuildDescriptor.h"
@@ -419,6 +418,7 @@ void UMassUpgradeLogic::UpgradePipelines_Server
 void UMassUpgradeLogic::UpgradePowerPoles
 (
 	AFGCharacterPlayer* player,
+	const TSubclassOf<UFGRecipe>& newWireTypeRecipe,
 	const TSubclassOf<UFGRecipe>& newPowerPoleTypeRecipe,
 	const TSubclassOf<UFGRecipe>& newPowerPoleWallTypeRecipe,
 	const TSubclassOf<UFGRecipe>& newPowerPoleWallDoubleTypeRecipe,
@@ -435,6 +435,7 @@ void UMassUpgradeLogic::UpgradePowerPoles
 	{
 		UpgradePowerPoles_Server(
 			player,
+			newWireTypeRecipe,
 			newPowerPoleTypeRecipe,
 			newPowerPoleWallTypeRecipe,
 			newPowerPoleWallDoubleTypeRecipe,
@@ -446,6 +447,7 @@ void UMassUpgradeLogic::UpgradePowerPoles
 	{
 		UMassUpgradeRCO::getRCO(player->GetWorld())->UpgradePowerPoles(
 			player,
+			newWireTypeRecipe,
 			newPowerPoleTypeRecipe,
 			newPowerPoleWallTypeRecipe,
 			newPowerPoleWallDoubleTypeRecipe,
@@ -458,6 +460,7 @@ void UMassUpgradeLogic::UpgradePowerPoles
 void UMassUpgradeLogic::UpgradePowerPoles_Server
 (
 	AFGCharacterPlayer* player,
+	const TSubclassOf<UFGRecipe>& newWireTypeRecipe,
 	const TSubclassOf<UFGRecipe>& newPowerPoleTypeRecipe,
 	const TSubclassOf<UFGRecipe>& newPowerPoleWallTypeRecipe,
 	const TSubclassOf<UFGRecipe>& newPowerPoleWallDoubleTypeRecipe,
@@ -485,6 +488,7 @@ void UMassUpgradeLogic::UpgradePowerPoles_Server
 			{
 				UpgradePowerPoles_Server(
 					player,
+					newWireTypeRecipe,
 					newPowerPoleTypeRecipe,
 					newPowerPoleWallTypeRecipe,
 					newPowerPoleWallDoubleTypeRecipe,
@@ -501,6 +505,7 @@ void UMassUpgradeLogic::UpgradePowerPoles_Server
 
 	std::map<TSubclassOf<UFGRecipe>, int32> recipeAmountMap;
 
+	TArray<AFGBuildableWire*> wires;
 	TArray<AFGBuildablePowerPole*> powerPoles;
 	TArray<AFGBuildablePowerPole*> powerPoleWalls;
 	TArray<AFGBuildablePowerPole*> powerPoleWallDoubles;
@@ -510,7 +515,11 @@ void UMassUpgradeLogic::UpgradePowerPoles_Server
 	{
 		for (auto buildable : info.buildables)
 		{
-			if (commonInfoSubsystem->IsPowerPole(buildable))
+			if (buildable->IsA(AFGBuildableWire::StaticClass()))
+			{
+				wires.Add(Cast<AFGBuildableWire>(buildable));
+			}
+			else if (commonInfoSubsystem->IsPowerPole(buildable))
 			{
 				powerPoles.Add(Cast<AFGBuildablePowerPole>(buildable));
 			}
@@ -530,6 +539,11 @@ void UMassUpgradeLogic::UpgradePowerPoles_Server
 	}
 
 	TMap<TSubclassOf<UFGItemDescriptor>, int32> itemsToAddOrRemoveFromInventory;
+
+	if (newWireTypeRecipe && !wires.IsEmpty())
+	{
+		recipeAmountMap[newWireTypeRecipe] = UpgradeWire(player, wires, newWireTypeRecipe, itemsToAddOrRemoveFromInventory);
+	}
 
 	if (newPowerPoleTypeRecipe && !powerPoles.IsEmpty())
 	{
@@ -1125,6 +1139,103 @@ int32 UMassUpgradeLogic::UpgradePump
 	return amountBuilt;
 }
 
+int32 UMassUpgradeLogic::UpgradeWire
+(
+	AFGCharacterPlayer* player,
+	const TArray<AFGBuildableWire*>& wires,
+	TSubclassOf<UFGRecipe> newWireTypeRecipe,
+	TMap<TSubclassOf<UFGItemDescriptor>, int32>& itemsToAddOrRemoveFromInventory
+)
+{
+	if (!player)
+	{
+		return 0;
+	}
+
+	int32 amountBuilt = 0;
+
+	auto world = player->GetWorld();
+	auto newWireType = AFGBuildable::GetBuildableClassFromRecipe(newWireTypeRecipe);
+	auto buildableSubsystem = AFGBuildableSubsystem::Get(world);
+	auto playerInventory = player->GetInventory();
+	auto gameState = Cast<AFGGameState>(world->GetGameState());
+
+	for (auto wire : wires)
+	{
+		if (wire->GetClass() == newWireType)
+		{
+			continue;
+		}
+
+		auto hologram = AFGHologram::SpawnHologramFromRecipe(
+			newWireTypeRecipe,
+			player->GetBuildGun(),
+			wire->GetActorLocation(),
+			player
+			);
+
+		FHitResult hitResult(wire, hologram->GetComponentByClass<UPrimitiveComponent>(), wire->GetActorLocation(), wire->GetActorRotation().Vector());
+		if (!hologram->TryUpgrade(hitResult))
+		{
+			hologram->Destroy();
+			continue;
+		}
+
+		hologram->ValidatePlacementAndCost(playerInventory);
+
+		if (!hologram->IsUpgrade())
+		{
+			hologram->Destroy();
+			continue;
+		}
+
+		if (!gameState->GetCheatNoCost())
+		{
+			for (const auto& itemAmount : hologram->GetCost(false))
+			{
+				itemsToAddOrRemoveFromInventory.FindOrAdd(itemAmount.ItemClass) -= itemAmount.Amount;
+			}
+
+			TArray<FInventoryStack> refunds;
+			wire->GetDismantleRefundReturns(refunds);
+
+			for (const auto& inventory : refunds)
+			{
+				itemsToAddOrRemoveFromInventory.FindOrAdd(inventory.Item.GetItemClass()) += inventory.NumItems;
+			}
+		}
+
+		hologram->CheckValidPlacement();
+
+		hologram->DoMultiStepPlacement(false);
+
+		hologram->CheckValidPlacement();
+
+		TArray<AActor*> children;
+		auto newWire = Cast<AFGBuildableWire>(hologram->Construct(children, buildableSubsystem->GetNewNetConstructionID()));
+
+		hologram->Destroy();
+
+		wire->PreUpgrade_Implementation();
+		wire->Upgrade_Implementation(newWire);
+		
+		// Delete children, if any
+		TArray<AActor*> childDismantleActors;
+		wire->GetChildDismantleActors_Implementation(childDismantleActors);
+
+		for (auto actor : childDismantleActors)
+		{
+			actor->Destroy();
+		}
+
+		wire->Destroy();
+
+		amountBuilt += newWire->GetDismantleRefundReturnsMultiplier();
+	}
+
+	return amountBuilt;
+}
+
 int32 UMassUpgradeLogic::UpgradePowerPole
 (
 	AFGCharacterPlayer* player,
@@ -1204,19 +1315,6 @@ int32 UMassUpgradeLogic::UpgradePowerPole
 
 		powerPole->PreUpgrade_Implementation();
 		powerPole->Upgrade_Implementation(newPowerPole);
-
-		// // Remake the connections
-		// if (auto connection = powerPole->GetPipeConnection0()->GetConnection())
-		// {
-		// 	powerPole->GetPipeConnection0()->ClearConnection(); // Disconnect
-		// 	newPowerPole->GetPipeConnection0()->SetConnection(connection); // Connect to the new pipeline
-		// }
-		//
-		// if (auto connection = powerPole->GetPipeConnection1()->GetConnection())
-		// {
-		// 	powerPole->GetPipeConnection1()->ClearConnection(); // Disconnect
-		// 	newPowerPole->GetPipeConnection1()->SetConnection(connection); // Connect to the new pipeline
-		// }
 
 		// Delete children, if any
 		TArray<AActor*> childDismantleActors;

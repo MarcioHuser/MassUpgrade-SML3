@@ -56,6 +56,7 @@ public:
 	static void CollectPowerPoleProductionInfo
 	(
 		class AFGBuildable* targetBuildable,
+		bool includeWires,
 		bool includePowerPoles,
 		bool includePowerPoleWalls,
 		bool includePowerPoleWallDoubles,

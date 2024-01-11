@@ -110,6 +110,13 @@ void AMassUpgradeEquipment::Tick(float DeltaSeconds)
 			setBuildDescriptor(tempTargetBuildable->GetBuiltWithDescriptor());
 		}
 	}
+	else if (hit.GetActor())
+	{
+		if (playerController->WasInputKeyJustPressed(EKeys::NumPadZero))
+		{
+			UMarcioCommonLibsUtils::DumpUnknownClass(hit.GetActor());
+		}
+	}
 
 	targetBuildable = tempTargetBuildable;
 
