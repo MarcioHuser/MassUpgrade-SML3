@@ -2,6 +2,7 @@
 
 #include <map>
 
+#include "FGCentralStorageSubsystem.h"
 #include "FGCharacterPlayer.h"
 #include "FGCircuitSubsystem.h"
 #include "FGCrate.h"
@@ -27,6 +28,8 @@
 #include "Subsystems/CommonInfoSubsystem.h"
 #include "Util/MULogging.h"
 #include "Util/MarcioCommonLibsUtils.h"
+#include "Async/Async.h"
+#include "Logic/ProductionInfoAccessor.h"
 
 #ifndef OPTIMIZE
 #pragma optimize("", off)
@@ -150,85 +153,7 @@ void UMassUpgradeLogic::UpgradeConveyors_Server
 		recipeAmountMap[newStorageTypeRecipe] = UpgradeStorage(player, storages, newStorageTypeRecipe, itemsToAddOrRemoveFromInventory);
 	}
 
-	TMap<TSubclassOf<UFGItemDescriptor>, int32> excessToDrop;
-	auto playerInventory = player->GetInventory();
-
-	for (const auto& entry : itemsToAddOrRemoveFromInventory)
-	{
-		if (entry.Value > 0)
-		{
-			// Add to inventory
-			auto itemsAdded = playerInventory->AddStack(FInventoryStack(entry.Value, entry.Key), true);
-
-			if (itemsAdded < entry.Value)
-			{
-				// No more room. Add to the drop crate
-				excessToDrop.FindOrAdd(entry.Key) += entry.Value - itemsAdded;
-			}
-		}
-		else if (entry.Value < 0)
-		{
-			playerInventory->Remove(entry.Key, -entry.Value);
-		}
-	}
-
-	if (!excessToDrop.IsEmpty())
-	{
-		TArray<FInventoryStack> stacks;
-
-		for (const auto& entry : excessToDrop)
-		{
-			stacks.Add(
-				FInventoryStack(
-					entry.Value,
-					entry.Key
-					)
-				);
-		}
-
-		FHitResult out_hitResult;
-		float out_waterDepth = 0;
-
-		if (!player->TraceForGround(
-			player->GetActorLocation(),
-			player->GetActorLocation() + FVector(0, 0, -60000),
-			out_hitResult,
-			out_waterDepth
-			))
-		{
-			// Place it whenever the player is, even if flying over the ground
-			out_hitResult.Location = player->GetActorLocation();
-		}
-
-		AFGCrate* out_Crate = nullptr;
-
-		AFGItemPickup_Spawnable::SpawnInventoryCrate(
-			player->GetWorld(),
-			stacks,
-			out_hitResult.Location + FVector(0, 0, out_waterDepth),
-			// Place at water level, if any
-			TArray<class AActor*>(),
-			out_Crate,
-			nullptr
-			);
-
-		UMarcioCommonLibsUtils::DumpUnknownClass(out_Crate);
-	}
-
-	auto shoppingListComponent = UFGShoppingListComponent::GetShoppingListComponent(player->GetFGPlayerController());
-
-	for (const auto& entry : recipeAmountMap)
-	{
-		bool out_result;
-		auto shoppingListObject_Class = Cast<UFGShoppingListObject_Class>(shoppingListComponent->GetShoppingListObjectFromClass(entry.first, out_result));
-
-		if (out_result && shoppingListObject_Class->GetAmount() > 0)
-		{
-			auto amount = FMath::Min(shoppingListObject_Class->GetAmount(), entry.second);
-
-			shoppingListObject_Class->DecreaseAmount(amount);
-		}
-	}
+	AddRemoveFromInventory(player, itemsToAddOrRemoveFromInventory, recipeAmountMap);
 }
 
 void UMassUpgradeLogic::UpgradePipelines
@@ -334,85 +259,7 @@ void UMassUpgradeLogic::UpgradePipelines_Server
 		recipeAmountMap[newPumpTypeRecipe] = UpgradePump(player, pumps, newPumpTypeRecipe, itemsToAddOrRemoveFromInventory);
 	}
 
-	TMap<TSubclassOf<UFGItemDescriptor>, int32> excessToDrop;
-	auto playerInventory = player->GetInventory();
-
-	for (const auto& entry : itemsToAddOrRemoveFromInventory)
-	{
-		if (entry.Value > 0)
-		{
-			// Add to inventory
-			auto itemsAdded = playerInventory->AddStack(FInventoryStack(entry.Value, entry.Key), true);
-
-			if (itemsAdded < entry.Value)
-			{
-				// No more room. Add to the drop crate
-				excessToDrop.FindOrAdd(entry.Key) += entry.Value - itemsAdded;
-			}
-		}
-		else if (entry.Value < 0)
-		{
-			playerInventory->Remove(entry.Key, -entry.Value);
-		}
-	}
-
-	if (!excessToDrop.IsEmpty())
-	{
-		TArray<FInventoryStack> stacks;
-
-		for (const auto& entry : excessToDrop)
-		{
-			stacks.Add(
-				FInventoryStack(
-					entry.Value,
-					entry.Key
-					)
-				);
-		}
-
-		FHitResult out_hitResult;
-		float out_waterDepth = 0;
-
-		if (!player->TraceForGround(
-			player->GetActorLocation(),
-			player->GetActorLocation() + FVector(0, 0, -60000),
-			out_hitResult,
-			out_waterDepth
-			))
-		{
-			// Place it whenever the player is, even if flying over the ground
-			out_hitResult.Location = player->GetActorLocation();
-		}
-
-		AFGCrate* out_Crate = nullptr;
-
-		AFGItemPickup_Spawnable::SpawnInventoryCrate(
-			player->GetWorld(),
-			stacks,
-			out_hitResult.Location + FVector(0, 0, out_waterDepth),
-			// Place at water level, if any
-			TArray<class AActor*>(),
-			out_Crate,
-			nullptr
-			);
-
-		UMarcioCommonLibsUtils::DumpUnknownClass(out_Crate);
-	}
-
-	auto shoppingListComponent = UFGShoppingListComponent::GetShoppingListComponent(player->GetFGPlayerController());
-
-	for (const auto& entry : recipeAmountMap)
-	{
-		bool out_result;
-		auto shoppingListObject_Class = Cast<UFGShoppingListObject_Class>(shoppingListComponent->GetShoppingListObjectFromClass(entry.first, out_result));
-
-		if (out_result && shoppingListObject_Class->GetAmount() > 0)
-		{
-			auto amount = FMath::Min(shoppingListObject_Class->GetAmount(), entry.second);
-
-			shoppingListObject_Class->DecreaseAmount(amount);
-		}
-	}
+	AddRemoveFromInventory(player, itemsToAddOrRemoveFromInventory, recipeAmountMap);
 }
 
 void UMassUpgradeLogic::UpgradePowerPoles
@@ -565,85 +412,7 @@ void UMassUpgradeLogic::UpgradePowerPoles_Server
 		recipeAmountMap[newPowerTowerTypeRecipe] = UpgradePowerPole(player, powerTowers, newPowerTowerTypeRecipe, itemsToAddOrRemoveFromInventory);
 	}
 
-	TMap<TSubclassOf<UFGItemDescriptor>, int32> excessToDrop;
-	auto playerInventory = player->GetInventory();
-
-	for (const auto& entry : itemsToAddOrRemoveFromInventory)
-	{
-		if (entry.Value > 0)
-		{
-			// Add to inventory
-			auto itemsAdded = playerInventory->AddStack(FInventoryStack(entry.Value, entry.Key), true);
-
-			if (itemsAdded < entry.Value)
-			{
-				// No more room. Add to the drop crate
-				excessToDrop.FindOrAdd(entry.Key) += entry.Value - itemsAdded;
-			}
-		}
-		else if (entry.Value < 0)
-		{
-			playerInventory->Remove(entry.Key, -entry.Value);
-		}
-	}
-
-	if (!excessToDrop.IsEmpty())
-	{
-		TArray<FInventoryStack> stacks;
-
-		for (const auto& entry : excessToDrop)
-		{
-			stacks.Add(
-				FInventoryStack(
-					entry.Value,
-					entry.Key
-					)
-				);
-		}
-
-		FHitResult out_hitResult;
-		float out_waterDepth = 0;
-
-		if (!player->TraceForGround(
-			player->GetActorLocation(),
-			player->GetActorLocation() + FVector(0, 0, -60000),
-			out_hitResult,
-			out_waterDepth
-			))
-		{
-			// Place it whenever the player is, even if flying over the ground
-			out_hitResult.Location = player->GetActorLocation();
-		}
-
-		AFGCrate* out_Crate = nullptr;
-
-		AFGItemPickup_Spawnable::SpawnInventoryCrate(
-			player->GetWorld(),
-			stacks,
-			out_hitResult.Location + FVector(0, 0, out_waterDepth),
-			// Place at water level, if any
-			TArray<class AActor*>(),
-			out_Crate,
-			nullptr
-			);
-
-		UMarcioCommonLibsUtils::DumpUnknownClass(out_Crate);
-	}
-
-	auto shoppingListComponent = UFGShoppingListComponent::GetShoppingListComponent(player->GetFGPlayerController());
-
-	for (const auto& entry : recipeAmountMap)
-	{
-		bool out_result;
-		auto shoppingListObject_Class = Cast<UFGShoppingListObject_Class>(shoppingListComponent->GetShoppingListObjectFromClass(entry.first, out_result));
-
-		if (out_result && shoppingListObject_Class->GetAmount() > 0)
-		{
-			auto amount = FMath::Min(shoppingListObject_Class->GetAmount(), entry.second);
-
-			shoppingListObject_Class->DecreaseAmount(amount);
-		}
-	}
+	AddRemoveFromInventory(player, itemsToAddOrRemoveFromInventory, recipeAmountMap);
 }
 
 int32 UMassUpgradeLogic::UpgradeConveyor
@@ -1218,7 +987,7 @@ int32 UMassUpgradeLogic::UpgradeWire
 
 		wire->PreUpgrade_Implementation();
 		wire->Upgrade_Implementation(newWire);
-		
+
 		// Delete children, if any
 		TArray<AActor*> childDismantleActors;
 		wire->GetChildDismantleActors_Implementation(childDismantleActors);
@@ -1333,6 +1102,103 @@ int32 UMassUpgradeLogic::UpgradePowerPole
 	return amountBuilt;
 }
 
+void UMassUpgradeLogic::AddRemoveFromInventory
+(
+	class AFGCharacterPlayer* player,
+	const TMap<TSubclassOf<UFGItemDescriptor>, int32>& itemsToAddOrRemoveFromInventory,
+	const std::map<TSubclassOf<UFGRecipe>, int32>& recipeAmountMap
+)
+{
+	TMap<TSubclassOf<UFGItemDescriptor>, int32> excessToDrop;
+	auto playerInventory = player->GetInventory();
+
+	for (const auto& entry : itemsToAddOrRemoveFromInventory)
+	{
+		if (entry.Value > 0)
+		{
+			// Add to inventory
+			auto itemsAdded = playerInventory->AddStack(FInventoryStack(entry.Value, entry.Key), true);
+
+			if (itemsAdded < entry.Value)
+			{
+				// No more room. Add to the drop crate
+				excessToDrop.FindOrAdd(entry.Key) += entry.Value - itemsAdded;
+			}
+		}
+		else if (entry.Value < 0)
+		{
+			auto centralStorageSubsystem = AFGCentralStorageSubsystem::Get(player->GetWorld());
+			auto playerState = player->GetPlayerStateChecked<AFGPlayerState>();
+
+			UFGInventoryLibrary::GrabItemsFromInventoryAndCentralStorage(
+				playerInventory,
+				centralStorageSubsystem,
+				playerState->GetTakeFromInventoryBeforeCentralStorage(),
+				entry.Key,
+				-entry.Value
+				);
+		}
+	}
+
+	if (!excessToDrop.IsEmpty())
+	{
+		TArray<FInventoryStack> stacks;
+
+		for (const auto& entry : excessToDrop)
+		{
+			stacks.Add(
+				FInventoryStack(
+					entry.Value,
+					entry.Key
+					)
+				);
+		}
+
+		FHitResult out_hitResult;
+		float out_waterDepth = 0;
+
+		if (!player->TraceForGround(
+			player->GetActorLocation(),
+			player->GetActorLocation() + FVector(0, 0, -60000),
+			out_hitResult,
+			out_waterDepth
+			))
+		{
+			// Place it whenever the player is, even if flying over the ground
+			out_hitResult.Location = player->GetActorLocation();
+		}
+
+		AFGCrate* out_Crate = nullptr;
+
+		AFGItemPickup_Spawnable::SpawnInventoryCrate(
+			player->GetWorld(),
+			stacks,
+			out_hitResult.Location + FVector(0, 0, out_waterDepth),
+			// Place at water level, if any
+			TArray<class AActor*>(),
+			out_Crate,
+			EFGCrateType::CT_DismantleCrate,
+			nullptr
+			);
+
+		UMarcioCommonLibsUtils::DumpUnknownClass(out_Crate);
+	}
+
+	auto shoppingListComponent = UFGShoppingListComponent::GetShoppingListComponent(player->GetFGPlayerController());
+
+	for (const auto& entry : recipeAmountMap)
+	{
+		bool out_result;
+		auto shoppingListObject_Class = Cast<UFGShoppingListObject_Class>(shoppingListComponent->GetShoppingListObjectFromClass(entry.first, out_result));
+
+		if (out_result && shoppingListObject_Class->GetAmount() > 0)
+		{
+			auto amount = FMath::Min(shoppingListObject_Class->GetAmount(), entry.second);
+
+			shoppingListObject_Class->DecreaseAmount(amount);
+		}
+	}
+}
 
 #ifndef OPTIMIZE
 #pragma optimize("", on)

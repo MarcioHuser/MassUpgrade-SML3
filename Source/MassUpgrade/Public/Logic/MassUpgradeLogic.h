@@ -3,6 +3,8 @@
 #include "Buildables/FGBuildableConveyorBelt.h"
 #include "Buildables/FGBuildableConveyorLift.h"
 
+#include <map>
+
 #include "MassUpgradeLogic.generated.h"
 
 UCLASS(Blueprintable)
@@ -112,5 +114,12 @@ public:
 		const TArray<class AFGBuildablePowerPole*>& powerPoles,
 		TSubclassOf<UFGRecipe> newPowerPoleTypeRecipe,
 		TMap<TSubclassOf<UFGItemDescriptor>, int32>& itemsToAddOrRemoveFromInventory
+	);
+
+	static void AddRemoveFromInventory
+	(
+		class AFGCharacterPlayer* player,
+		const TMap<TSubclassOf<UFGItemDescriptor>, int32>& itemsToAddOrRemoveFromInventory,
+		const std::map<TSubclassOf<UFGRecipe>, int32>& recipeAmountMap
 	);
 };

@@ -56,6 +56,8 @@ public class MassUpgrade : ModuleRules
 			"FactoryGame",
 			"SML",
 			"MarcioCommonLibs",
+			"AbstractInstance",
+			"DummyHeaders",
 		});
 
 
@@ -75,8 +77,8 @@ public class MassUpgrade : ModuleRules
 			}
 		);
 
-		var factoryGamePchPath = new DirectoryReference(Path.Combine(Target.ProjectFile.Directory.ToString(), "Source",
-			"FactoryGame", "Public", "FactoryGame.h"));
-		PrivatePCHHeaderFile = factoryGamePchPath.MakeRelativeTo(new DirectoryReference(ModuleDirectory));
+		// var factoryGamePchPath = new DirectoryReference(Path.Combine(Target.ProjectFile.Directory.ToString(), "Source",
+		// 	"FactoryGame", "Public"));
+		// PrivatePCHHeaderFile = factoryGamePchPath.MakeRelativeTo(new DirectoryReference(ModuleDirectory));
 	}
 }

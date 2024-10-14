@@ -17,6 +17,9 @@ public:
 
 	virtual void Tick(float DeltaSeconds) override;
 
+	virtual void Equip(AFGCharacterPlayer* character) override;
+	virtual void UnEquip() override;
+	
 	UFUNCTION(BlueprintCallable)
 	virtual void PrimaryFirePressed();
 
@@ -34,6 +37,9 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "MassUpgrade")
 	void setBuildDescriptor(TSubclassOf<UFGItemDescriptor> buildDescriptor);
 
+	virtual void ShowOutline(class AFGCharacterPlayer* character, class AActor* actor);
+	virtual void HideOutline(class AFGCharacterPlayer* character);
+
 	FString _TAG_NAME = TEXT("MassUpgradeEquipment: ");
 
 	inline FString
@@ -47,6 +53,9 @@ public:
 
 	UPROPERTY(BlueprintReadWrite)
 	class UPointLightComponent* pointLight = nullptr;
+
+	UPROPERTY()
+	class AActor* outlinedActor = nullptr;
 
 public:
 	//FORCEINLINE ~AEfficiencyCheckerEquipment() = default;

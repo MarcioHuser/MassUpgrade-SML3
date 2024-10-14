@@ -17,6 +17,7 @@
 
 #include <map>
 
+#include "FGCentralStorageSubsystem.h"
 #include "FGCircuitSubsystem.h"
 #include "FGPipeConnectionComponent.h"
 #include "FGPowerConnectionComponent.h"
@@ -142,10 +143,12 @@ bool UProductionInfoAccessor::CanAffordUpgrade
 
 	if (!gameState->GetCheatNoCost())
 	{
+		auto centralStorageSubsystem = AFGCentralStorageSubsystem::Get(player->GetWorld());
+
 		// Must afford all to be true
 		for (const auto& entry : upgradeCost)
 		{
-			if (playerInventory->GetNumItems(entry.Key) < entry.Value)
+			if (playerInventory->GetNumItems(entry.Key) + centralStorageSubsystem->GetNumItemsFromCentralStorage(entry.Key) < entry.Value)
 			{
 				return false;
 			}
@@ -182,7 +185,7 @@ void UProductionInfoAccessor::CollectConveyorProductionInfo
 {
 	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
 
-	if (!GetValid(targetBuildable) || !targetBuildable->IsA(AFGBuildableConveyorBase::StaticClass()) && !commonInfoSubsystem->IsStorageContainer(targetBuildable))
+	if (!GetValid(targetBuildable) || (!targetBuildable->IsA(AFGBuildableConveyorBase::StaticClass()) && !commonInfoSubsystem->IsStorageContainer(targetBuildable)))
 	{
 		return;
 	}
@@ -209,9 +212,9 @@ void UProductionInfoAccessor::CollectConveyorProductionInfo
 			continue;
 		}
 
-		if (includeBelts && buildable->IsA(AFGBuildableConveyorBelt::StaticClass()) ||
-			includeLifts && buildable->IsA(AFGBuildableConveyorLift::StaticClass()) ||
-			includeStorages && commonInfoSubsystem->IsStorageContainer(buildable))
+		if ((includeBelts && buildable->IsA(AFGBuildableConveyorBelt::StaticClass())) ||
+			(includeLifts && buildable->IsA(AFGBuildableConveyorLift::StaticClass())) ||
+			(includeStorages && commonInfoSubsystem->IsStorageContainer(buildable)))
 		{
 			info.buildables.Add(buildable);
 		}
@@ -366,7 +369,8 @@ void UProductionInfoAccessor::CollectPipelineProductionInfo
 	TArray<FProductionInfo>& infos
 )
 {
-	if (!GetValid(targetBuildable) || !targetBuildable->IsA(AFGBuildablePipeline::StaticClass()) && !targetBuildable->IsA(AFGBuildablePipelinePump::StaticClass()))
+	if (!GetValid(targetBuildable) ||
+		(!targetBuildable->IsA(AFGBuildablePipeline::StaticClass()) && !targetBuildable->IsA(AFGBuildablePipelinePump::StaticClass())))
 	{
 		return;
 	}
@@ -544,10 +548,10 @@ void UProductionInfoAccessor::CollectPowerPoleProductionInfo
 	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
 
 	if (!GetValid(targetBuildable) ||
-		!commonInfoSubsystem->IsPowerPole(targetBuildable) &&
-		!commonInfoSubsystem->IsPowerPoleWall(targetBuildable) &&
-		!commonInfoSubsystem->IsPowerPoleWallDouble(targetBuildable) &&
-		!commonInfoSubsystem->IsPowerTower(targetBuildable))
+		(!commonInfoSubsystem->IsPowerPole(targetBuildable) &&
+			!commonInfoSubsystem->IsPowerPoleWall(targetBuildable) &&
+			!commonInfoSubsystem->IsPowerPoleWallDouble(targetBuildable) &&
+			!commonInfoSubsystem->IsPowerTower(targetBuildable)))
 	{
 		return;
 	}

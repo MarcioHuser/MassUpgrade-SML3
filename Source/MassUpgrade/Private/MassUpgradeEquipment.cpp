@@ -7,6 +7,8 @@
 #include "Buildables/FGBuildablePipelinePump.h"
 #include "Buildables/FGBuildablePowerPole.h"
 #include "Buildables/FGBuildableStorage.h"
+#include "Components/PointLightComponent.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Logic/ProductionInfoAccessor.h"
 #include "Subsystems/CommonInfoSubsystem.h"
 #include "Util/MULogging.h"
@@ -62,8 +64,6 @@ void AMassUpgradeEquipment::Tick(float DeltaSeconds)
 		hit,
 		true
 		);
-
-	auto outline = GetInstigatorCharacter()->GetOutline();
 
 	auto hitActor = Cast<AFGBuildable>(UMarcioCommonLibsUtils::GetHitActor(hit));
 	AFGBuildable* tempTargetBuildable = nullptr;
@@ -122,14 +122,12 @@ void AMassUpgradeEquipment::Tick(float DeltaSeconds)
 
 	if (!targetBuildable)
 	{
-		outline->HideOutline();
-
 		pointLight->SetIntensity(0);
 
 		return;
 	}
 
-	outline->ShowOutline(targetBuildable, EOutlineColor::OC_USABLE);
+	ShowOutline(GetInstigatorCharacter(), targetBuildable);
 
 	pointLight->SetIntensity(50);
 	pointLight->SetLightColor(FColor(0x0, 0xff, 0x0, 0xff));
@@ -168,6 +166,40 @@ void AMassUpgradeEquipment::PrimaryFirePressed()
 		commonInfoSubsystem->IsPowerTower(targetBuildable))
 	{
 		ShowPowerPolePopupWidget();
+	}
+}
+
+void AMassUpgradeEquipment::Equip(AFGCharacterPlayer* character)
+{
+	Super::Equip(character);
+
+	HideOutline(character);
+}
+
+void AMassUpgradeEquipment::UnEquip()
+{
+	HideOutline(GetInstigatorCharacter());
+
+	Super::UnEquip();
+}
+
+void AMassUpgradeEquipment::ShowOutline(AFGCharacterPlayer* character, AActor* actor)
+{
+	HideOutline(character);
+
+	if (character && actor)
+	{
+		character->GetOutline()->ShowOutline(actor, EOutlineColor::OC_USABLE);
+		outlinedActor = actor;
+	}
+}
+
+void AMassUpgradeEquipment::HideOutline(AFGCharacterPlayer* character)
+{
+	if (character && outlinedActor)
+	{
+		character->GetOutline()->HideOutline(outlinedActor);
+		outlinedActor = nullptr;
 	}
 }
 
