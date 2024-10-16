@@ -24,25 +24,29 @@
 #include "Buildables/FGBuildablePowerPole.h"
 #include "Model/ComboBoxItem.h"
 
-#include <map>
-
 #include "FGPowerConnectionComponent.h"
 #include "Buildables/FGBuildableWall.h"
 #include "Buildables/FGBuildableWire.h"
+#include "Components/CheckBox.h"
+#include "Components/HorizontalBoxSlot.h"
 #include "Hologram/FGWireHologram.h"
 
 #ifndef OPTIMIZE
 #pragma optimize("", off)
 #endif
 
+std::map<TSubclassOf<UFGBuildDescriptor>, bool> UWidgetMassUpgradePopupHelper::checkedRecipes;
+
 void UWidgetMassUpgradePopupHelper::GetConveyorsBySpeed
 (
+	UObject* WorldContextObject,
 	TArray<struct FComboBoxItem>& beltBySpeed,
 	TArray<struct FComboBoxItem>& liftBySpeed,
 	TArray<struct FComboBoxItem>& storageByCapacity
 )
 {
-	auto recipeManager = AFGRecipeManager::Get(ACommonInfoSubsystem::Get());
+	auto world = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+	auto recipeManager = AFGRecipeManager::Get(world);
 
 	TArray<TSubclassOf<UFGRecipe>> recipes;
 	recipeManager->GetAllAvailableRecipes(recipes);
@@ -51,7 +55,7 @@ void UWidgetMassUpgradePopupHelper::GetConveyorsBySpeed
 	liftBySpeed.Empty();
 	storageByCapacity.Empty();
 
-	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
+	auto commonInfoSubsystem = ACommonInfoSubsystem::Get(world);
 
 	for (const auto& recipe : recipes)
 	{
@@ -102,9 +106,15 @@ void UWidgetMassUpgradePopupHelper::GetConveyorsBySpeed
 	storageByCapacity.Sort(sortComboBoxItem);
 }
 
-void UWidgetMassUpgradePopupHelper::GetPipesBySpeed(TArray<struct FComboBoxItem>& pipeByFlowLimit, TArray<struct FComboBoxItem>& pumpByHeadLift)
+void UWidgetMassUpgradePopupHelper::GetPipesBySpeed
+(
+	UObject* WorldContextObject,
+	TArray<struct FComboBoxItem>& pipeByFlowLimit,
+	TArray<struct FComboBoxItem>& pumpByHeadLift
+)
 {
-	auto recipeManager = AFGRecipeManager::Get(ACommonInfoSubsystem::Get());
+	auto world = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+	auto recipeManager = AFGRecipeManager::Get(world);
 
 	TArray<TSubclassOf<UFGRecipe>> recipes;
 	recipeManager->GetAllAvailableRecipes(recipes);
@@ -112,7 +122,7 @@ void UWidgetMassUpgradePopupHelper::GetPipesBySpeed(TArray<struct FComboBoxItem>
 	pipeByFlowLimit.Empty();
 	pumpByHeadLift.Empty();
 
-	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
+	auto commonInfoSubsystem = ACommonInfoSubsystem::Get(world);
 
 	for (const auto& recipe : recipes)
 	{
@@ -158,6 +168,7 @@ void UWidgetMassUpgradePopupHelper::GetPipesBySpeed(TArray<struct FComboBoxItem>
 
 void UWidgetMassUpgradePopupHelper::GetPowerPolesByConnections
 (
+	UObject* WorldContextObject,
 	TArray<FComboBoxItem>& wireTypes,
 	TArray<FComboBoxItem>& powerPoleByConnection,
 	TArray<FComboBoxItem>& powerPoleWallByConnection,
@@ -165,7 +176,8 @@ void UWidgetMassUpgradePopupHelper::GetPowerPolesByConnections
 	TArray<FComboBoxItem>& powerTowerByConnection
 )
 {
-	auto recipeManager = AFGRecipeManager::Get(ACommonInfoSubsystem::Get());
+	auto world = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+	auto recipeManager = AFGRecipeManager::Get(world);
 
 	TArray<TSubclassOf<UFGRecipe>> recipes;
 	recipeManager->GetAllAvailableRecipes(recipes);
@@ -176,8 +188,7 @@ void UWidgetMassUpgradePopupHelper::GetPowerPolesByConnections
 	powerPoleWallDoubleByConnection.Empty();
 	powerTowerByConnection.Empty();
 
-	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
-	auto world = commonInfoSubsystem->GetWorld();
+	auto commonInfoSubsystem = ACommonInfoSubsystem::Get(world);
 
 	for (const auto& recipe : recipes)
 	{
@@ -344,7 +355,8 @@ void UWidgetMassUpgradePopupHelper::HandleConstructConveyorPopup
 	const TArray<struct FComboBoxItem>& storageByCapacity,
 	bool crossAttachmentsAndStorages,
 	TArray<struct FProductionInfo>& infos,
-	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+	FCheckboxStateChanged checkboxStateChanged
 )
 {
 	MU_LOG_Display_Condition(
@@ -417,7 +429,8 @@ void UWidgetMassUpgradePopupHelper::HandleConstructConveyorPopup
 		cmbStorageMk ? cmbStorageMk->GetSelectedOption() : FName(),
 		storageByCapacity,
 		infos,
-		createWidgetItemIconWithLabel
+		createWidgetItemIconWithLabel,
+		checkboxStateChanged
 		);
 
 	MU_LOG_Display_Condition(
@@ -442,7 +455,8 @@ void UWidgetMassUpgradePopupHelper::HandleConstructPipelinePopup
 	const TArray<struct FComboBoxItem>& pumpByHeadLift,
 	bool crossAttachmentsAndStorages,
 	TArray<FProductionInfo>& infos,
-	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+	FCheckboxStateChanged checkboxStateChanged
 )
 {
 	MU_LOG_Display_Condition(
@@ -501,7 +515,8 @@ void UWidgetMassUpgradePopupHelper::HandleConstructPipelinePopup
 		cmbPumpMk ? cmbPumpMk->GetSelectedOption() : FName(),
 		pumpByHeadLift,
 		infos,
-		createWidgetItemIconWithLabel
+		createWidgetItemIconWithLabel,
+		checkboxStateChanged
 		);
 
 	MU_LOG_Display_Condition(
@@ -535,7 +550,8 @@ void UWidgetMassUpgradePopupHelper::HandleConstructPowerPolePopup
 	const TArray<FComboBoxItem>& powerTowerByConnection,
 	bool crossAttachmentsAndStorages,
 	TArray<FProductionInfo>& infos,
-	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+	FCheckboxStateChanged checkboxStateChanged
 )
 {
 	MU_LOG_Display_Condition(
@@ -552,7 +568,7 @@ void UWidgetMassUpgradePopupHelper::HandleConstructPowerPolePopup
 
 	TSet<TSubclassOf<class UFGBuildDescriptor>> selectedTypes;
 
-	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
+	auto commonInfoSubsystem = ACommonInfoSubsystem::Get(targetBuildable->GetWorld());
 
 	if (cmbWireMk)
 	{
@@ -663,7 +679,8 @@ void UWidgetMassUpgradePopupHelper::HandleConstructPowerPolePopup
 		cmbPowerTowerMk ? cmbPowerTowerMk->GetSelectedOption() : FName(),
 		powerTowerByConnection,
 		infos,
-		createWidgetItemIconWithLabel
+		createWidgetItemIconWithLabel,
+		checkboxStateChanged
 		);
 
 	MU_LOG_Display_Condition(
@@ -686,10 +703,11 @@ void UWidgetMassUpgradePopupHelper::AddConveyors
 	const FName& storageMkType,
 	const TArray<struct FComboBoxItem>& storageByCapacity,
 	const TArray<struct FProductionInfo>& infos,
-	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+	FCheckboxStateChanged checkboxStateChanged
 )
 {
-	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
+	auto commonInfoSubsystem = ACommonInfoSubsystem::Get(gridBuildables->GetWorld());
 
 	AddBuildablesAndCost_Implementation(
 		gridBuildables,
@@ -723,7 +741,8 @@ void UWidgetMassUpgradePopupHelper::AddConveyors
 				return TSubclassOf<UFGRecipe>();
 			}
 		},
-		createWidgetItemIconWithLabel
+		createWidgetItemIconWithLabel,
+		checkboxStateChanged
 		);
 }
 
@@ -739,7 +758,8 @@ void UWidgetMassUpgradePopupHelper::AddPipelines
 	const FName& pumpMkType,
 	const TArray<struct FComboBoxItem>& pumpByHeadLift,
 	const TArray<FProductionInfo>& infos,
-	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+	FCheckboxStateChanged checkboxStateChanged
 )
 {
 	AddBuildablesAndCost_Implementation(
@@ -770,7 +790,8 @@ void UWidgetMassUpgradePopupHelper::AddPipelines
 				return TSubclassOf<UFGRecipe>();
 			}
 		},
-		createWidgetItemIconWithLabel
+		createWidgetItemIconWithLabel,
+		checkboxStateChanged
 		);
 }
 
@@ -792,10 +813,11 @@ void UWidgetMassUpgradePopupHelper::AddPowerPoles
 	const FName& powerTowerMkType,
 	const TArray<FComboBoxItem>& powerTowerByConnection,
 	const TArray<FProductionInfo>& infos,
-	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+	FCheckboxStateChanged checkboxStateChanged
 )
 {
-	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
+	auto commonInfoSubsystem = ACommonInfoSubsystem::Get(gridBuildables->GetWorld());
 
 	AddBuildablesAndCost_Implementation(
 		gridBuildables,
@@ -837,7 +859,8 @@ void UWidgetMassUpgradePopupHelper::AddPowerPoles
 				return TSubclassOf<UFGRecipe>();
 			}
 		},
-		createWidgetItemIconWithLabel
+		createWidgetItemIconWithLabel,
+		checkboxStateChanged
 		);
 }
 
@@ -850,7 +873,8 @@ void UWidgetMassUpgradePopupHelper::AddBuildablesAndCost
 	const float& iconSize,
 	const TArray<FProductionInfo>& infos,
 	FGetRecipe getRecipe,
-	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+	FCheckboxStateChanged checkboxStateChanged
 )
 {
 	AddBuildablesAndCost_Implementation(
@@ -864,7 +888,8 @@ void UWidgetMassUpgradePopupHelper::AddBuildablesAndCost
 		{
 			return getRecipe.IsBound() ? getRecipe.Execute(productionInfo) : nullptr;
 		},
-		createWidgetItemIconWithLabel
+		createWidgetItemIconWithLabel,
+		checkboxStateChanged
 		);
 }
 
@@ -877,18 +902,22 @@ void UWidgetMassUpgradePopupHelper::AddBuildablesAndCost_Implementation
 	const float& iconSize,
 	const TArray<FProductionInfo>& infos,
 	const std::function<TSubclassOf<UFGRecipe>(const struct FProductionInfo&)>& getRecipe,
-	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+	FCheckboxStateChanged checkboxStateChanged
 )
 {
 	auto player = UMarcioCommonLibsUtils::GetFGPlayer(gridBuildables);
 
-	RemoveExtraItems(gridBuildables, gridHeaderCount);
-	boxItemsCost->ClearChildren();
+	auto widgetTree = Cast<UWidgetTree>(gridBuildables->GetOuter());
 
 	TMap<TSubclassOf<UFGItemDescriptor>, int32> upgradeCost;
 	TSet<TSubclassOf<UFGRecipe>> targetRecipes;
 	std::map<TSubclassOf<UFGBuildDescriptor>, TMap<TSubclassOf<UFGItemDescriptor>, int32>> itemsToRefundMap;
 	std::map<TSubclassOf<UFGBuildDescriptor>, float> amountMap;
+
+	auto& localCheckedRecipes = checkedRecipes;
+
+	bool hasChecked = false;
 
 	for (const auto& info : infos)
 	{
@@ -899,19 +928,31 @@ void UWidgetMassUpgradePopupHelper::AddBuildablesAndCost_Implementation
 			continue;
 		}
 
-		targetRecipes.Add(recipe);
+		auto checkbox = widgetTree->FindWidget<UCheckBox>(GetCheckboxName(info));
+		localCheckedRecipes[info.buildableType] =
+			checkbox
+				? checkbox->IsChecked()
+				: localCheckedRecipes.find(info.buildableType) == localCheckedRecipes.end();
 
-		UProductionInfoAccessor::GetRefundableItems(
-			player,
-			recipe,
-			info,
-			itemsToRefundMap[info.buildableType],
-			upgradeCost,
-			amountMap[info.buildableType]
-			);
+		hasChecked |= localCheckedRecipes[info.buildableType];
+
+		if (localCheckedRecipes[info.buildableType])
+		{
+			targetRecipes.Add(recipe);
+
+			UProductionInfoAccessor::GetRefundableItems(
+				player,
+				recipe,
+				info,
+				itemsToRefundMap[info.buildableType],
+				upgradeCost,
+				amountMap[info.buildableType]
+				);
+		}
 	}
 
-	auto widgetTree = Cast<UWidgetTree>(gridBuildables->GetOuter());
+	RemoveExtraItems(gridBuildables, gridHeaderCount);
+	boxItemsCost->ClearChildren();
 
 	FNumberFormattingOptions options;
 	options.MinimumFractionalDigits = 0;
@@ -922,10 +963,13 @@ void UWidgetMassUpgradePopupHelper::AddBuildablesAndCost_Implementation
 
 	for (const auto& info : infos)
 	{
-		if (amountMap.find(info.buildableType) == amountMap.end())
-		{
-			continue;
-		}
+		// if (amountMap.find(info.buildableType) == amountMap.end())
+		// {
+		// 	continue;
+		// }
+
+		auto isChecked = localCheckedRecipes.find(info.buildableType) == localCheckedRecipes.end() ||
+			localCheckedRecipes[info.buildableType];
 
 		rowNumber++;
 
@@ -936,6 +980,19 @@ void UWidgetMassUpgradePopupHelper::AddBuildablesAndCost_Implementation
 
 		// Add Buildable Icon Cell
 		{
+			// auto horizontalBoxWidget = widgetTree->ConstructWidget<UHorizontalBox>();
+
+			auto checkbox = widgetTree->ConstructWidget<UCheckBox>(UCheckBox::StaticClass(), GetCheckboxName(info));
+
+			checkbox->SetIsChecked(isChecked);
+
+			if (checkboxStateChanged.IsBound())
+			{
+				checkbox->OnCheckStateChanged.Add(checkboxStateChanged);
+			}
+
+			// horizontalBoxWidget->AddChildToHorizontalBox(checkbox);
+
 			UWidget* widget;
 			if (createWidgetItemIconWithLabel.IsBound())
 			{
@@ -951,7 +1008,9 @@ void UWidgetMassUpgradePopupHelper::AddBuildablesAndCost_Implementation
 				widget = widgetTree->ConstructWidget<UBorder>();
 			}
 
-			auto gridSlot = gridBuildables->AddChildToGrid(widget, rowNumber, 0);
+			checkbox->AddChild(widget);
+
+			auto gridSlot = gridBuildables->AddChildToGrid(checkbox, rowNumber, 0);
 			gridSlot->SetPadding(FMargin(0, 10, 45, 0));
 		}
 
@@ -963,14 +1022,22 @@ void UWidgetMassUpgradePopupHelper::AddBuildablesAndCost_Implementation
 			auto font = beltLengthTextBoxWidget->GetFont();
 			font.Size = 16;
 			beltLengthTextBoxWidget->SetFont(font);
-			if (buildClass->IsChildOf(AFGBuildableConveyorBase::StaticClass()) ||
-				buildClass->IsChildOf(AFGBuildablePipeline::StaticClass()))
+
+			if (isChecked)
 			{
-				beltLengthTextBoxWidget->SetText(FText::Format(FTextFormat::FromString(TEXT("{0} m")), FText::AsNumber(amount, &options)));
+				if (buildClass->IsChildOf(AFGBuildableConveyorBase::StaticClass()) ||
+					buildClass->IsChildOf(AFGBuildablePipeline::StaticClass()))
+				{
+					beltLengthTextBoxWidget->SetText(FText::Format(FTextFormat::FromString(TEXT("{0} m")), FText::AsNumber(amount, &options)));
+				}
+				else
+				{
+					beltLengthTextBoxWidget->SetText(FText::AsNumber(amount, &options));
+				}
 			}
 			else
 			{
-				beltLengthTextBoxWidget->SetText(FText::AsNumber(amount, &options));
+				beltLengthTextBoxWidget->SetText(FText::FromString(TEXT("--")));
 			}
 
 			auto gridSlot = gridBuildables->AddChildToGrid(beltLengthTextBoxWidget, rowNumber, 1);
@@ -988,50 +1055,53 @@ void UWidgetMassUpgradePopupHelper::AddBuildablesAndCost_Implementation
 
 			auto hasRefund = false;
 
-			for (auto& entry : itemsToRefund)
+			if (isChecked)
 			{
-				const auto& key = entry.Key;
-
-				if (upgradeCost.Contains(key))
+				for (auto& entry : itemsToRefund)
 				{
-					auto commonAmount = FMath::Min(entry.Value, upgradeCost[key]);
+					const auto& key = entry.Key;
 
-					entry.Value -= commonAmount;
-					upgradeCost[key] -= commonAmount;
-
-					if (!upgradeCost[key])
+					if (upgradeCost.Contains(key))
 					{
-						upgradeCost.Remove(key);
+						auto commonAmount = FMath::Min(entry.Value, upgradeCost[key]);
+
+						entry.Value -= commonAmount;
+						upgradeCost[key] -= commonAmount;
+
+						if (!upgradeCost[key])
+						{
+							upgradeCost.Remove(key);
+						}
+
+						if (!entry.Value)
+						{
+							continue;
+						}
 					}
 
-					if (!entry.Value)
+					if (!createWidgetItemIconWithLabel.IsBound())
 					{
 						continue;
 					}
-				}
 
-				if (!createWidgetItemIconWithLabel.IsBound())
-				{
-					continue;
-				}
+					hasRefund = true;
 
-				hasRefund = true;
+					auto widget = createWidgetItemIconWithLabel.Execute(
+						true,
+						UFGItemDescriptor::GetBigIcon(entry.Key),
+						iconSize,
+						FText::Format(
+							FTextFormat::FromString(TEXT("{0} {1}")),
+							UFGItemDescriptor::GetItemName(entry.Key),
+							entry.Value
+							)
+						);
 
-				auto widget = createWidgetItemIconWithLabel.Execute(
-					true,
-					UFGItemDescriptor::GetBigIcon(entry.Key),
-					iconSize,
-					FText::Format(
-						FTextFormat::FromString(TEXT("{0} {1}")),
-						UFGItemDescriptor::GetItemName(entry.Key),
-						entry.Value
-						)
-					);
-
-				auto wrapSlot = wrapBoxWidget->AddChildToWrapBox(widget);
-				if (wrapBoxWidget->GetChildrenCount() > 1)
-				{
-					wrapSlot->SetPadding(FMargin(15, 0, 0, 0));
+					auto wrapSlot = wrapBoxWidget->AddChildToWrapBox(widget);
+					if (wrapBoxWidget->GetChildrenCount() > 1)
+					{
+						wrapSlot->SetPadding(FMargin(15, 0, 0, 0));
+					}
 				}
 			}
 
@@ -1073,7 +1143,7 @@ void UWidgetMassUpgradePopupHelper::AddBuildablesAndCost_Implementation
 		slot->SetPadding(FMargin(0, 0, 15, 0));
 	}
 
-	auto canUpgrade = UProductionInfoAccessor::CanAffordUpgrade(
+	auto canUpgrade = hasChecked && UProductionInfoAccessor::CanAffordUpgrade(
 		player,
 		targetRecipes.Array(),
 		upgradeCost,
@@ -1182,6 +1252,18 @@ FComboBoxItem UWidgetMassUpgradePopupHelper::GetSelectedComboBoxItem(const FName
 FComboBoxItem UWidgetMassUpgradePopupHelper::GetSelectedComboBoxItemFromComboboxKey(UComboBoxKey* comboBox, const TArray<FComboBoxItem>& comboBoxItems)
 {
 	return GetSelectedComboBoxItem(comboBox ? comboBox->GetSelectedOption() : FName(), comboBoxItems);
+}
+
+FName UWidgetMassUpgradePopupHelper::GetCheckboxName(const FProductionInfo& info)
+{
+	return *(TEXT("check") + info.buildableType->GetName());
+}
+
+UCheckBox* UWidgetMassUpgradePopupHelper::GetCheckbox(UWidget* container, const FProductionInfo& info)
+{
+	auto widgetTree = Cast<UWidgetTree>(container->GetOuter());
+
+	return widgetTree->FindWidget<UCheckBox>(GetCheckboxName(info));
 }
 
 #ifndef OPTIMIZE

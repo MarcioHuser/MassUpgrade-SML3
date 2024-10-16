@@ -69,6 +69,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="MassUpgrade|ProductionInfoAccessor")
 	static void FilterInfos(TSubclassOf<AFGBuildable> baseType, UPARAM(Ref) TArray<FProductionInfo>& infos, TArray<FProductionInfo>& filteredInfos);
 
+	UFUNCTION(BlueprintCallable, Category="MassUpgrade|ProductionInfoAccessor", BlueprintPure)
+	static void FilterSelectedInfos
+	(
+		class UWidget* container,
+		UPARAM(Ref) TArray<FProductionInfo>& infos,
+		TArray<FProductionInfo>& filteredInfos
+	);
+
 	UFUNCTION(BlueprintCallable, Category="MassUpgrade|ProductionInfoAccessor")
 	static void AddInfosToShoppingList
 	(

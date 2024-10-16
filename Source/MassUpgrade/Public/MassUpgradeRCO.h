@@ -27,9 +27,9 @@ public:
 	void UpgradeConveyors
 	(
 		class AFGCharacterPlayer* player,
-		TSubclassOf<UFGRecipe> newBeltTypeRecipe,
-		TSubclassOf<UFGRecipe> newLiftTypeRecipe,
-		TSubclassOf<UFGRecipe> newStorageTypeRecipe,
+		TSubclassOf<class UFGRecipe> newBeltTypeRecipe,
+		TSubclassOf<class UFGRecipe> newLiftTypeRecipe,
+		TSubclassOf<class UFGRecipe> newStorageTypeRecipe,
 		const TArray<struct FProductionInfo>& infos
 	);
 
@@ -37,8 +37,8 @@ public:
 	void UpgradePipelines
 	(
 		class AFGCharacterPlayer* player,
-		TSubclassOf<UFGRecipe> newPipelineTypeRecipe,
-		TSubclassOf<UFGRecipe> newPumpTypeRecipe,
+		TSubclassOf<class UFGRecipe> newPipelineTypeRecipe,
+		TSubclassOf<class UFGRecipe> newPumpTypeRecipe,
 		const TArray<struct FProductionInfo>& infos
 	);
 
@@ -46,11 +46,11 @@ public:
 	void UpgradePowerPoles
 	(
 		class AFGCharacterPlayer* player,
-		TSubclassOf<UFGRecipe> newWireTypeRecipe,
-		TSubclassOf<UFGRecipe> newPowerPoleTypeRecipe,
-		TSubclassOf<UFGRecipe> newPowerPoleWallTypeRecipe,
-		TSubclassOf<UFGRecipe> newPowerPoleWallDoubleTypeRecipe,
-		TSubclassOf<UFGRecipe> newPowerTowerTypeRecipe,
+		TSubclassOf<class UFGRecipe> newWireTypeRecipe,
+		TSubclassOf<class UFGRecipe> newPowerPoleTypeRecipe,
+		TSubclassOf<class UFGRecipe> newPowerPoleWallTypeRecipe,
+		TSubclassOf<class UFGRecipe> newPowerPoleWallDoubleTypeRecipe,
+		TSubclassOf<class UFGRecipe> newPowerTowerTypeRecipe,
 		const TArray<struct FProductionInfo>& infos
 	);
 

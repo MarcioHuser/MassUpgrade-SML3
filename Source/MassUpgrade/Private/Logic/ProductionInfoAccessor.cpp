@@ -22,6 +22,7 @@
 #include "FGPipeConnectionComponent.h"
 #include "FGPowerConnectionComponent.h"
 #include "FGRailroadSubsystem.h"
+#include "FGTrainPlatformConnection.h"
 #include "FGTrainStationIdentifier.h"
 #include "Buildables/FGBuildableCircuitBridge.h"
 #include "Buildables/FGBuildableDockingStation.h"
@@ -33,6 +34,8 @@
 #include "Buildables/FGBuildableRailroadStation.h"
 #include "Buildables/FGBuildableTrainPlatformCargo.h"
 #include "Buildables/FGBuildableWire.h"
+#include "Components/CheckBox.h"
+#include "Widget/WidgetMassUpgradePopupHelper.h"
 
 #ifndef OPTIMIZE
 #pragma optimize("", off)
@@ -183,9 +186,21 @@ void UProductionInfoAccessor::CollectConveyorProductionInfo
 	TArray<FProductionInfo>& infos
 )
 {
-	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
+	if (!GetValid(targetBuildable))
+	{
+		return;
+	}
 
-	if (!GetValid(targetBuildable) || (!targetBuildable->IsA(AFGBuildableConveyorBase::StaticClass()) && !commonInfoSubsystem->IsStorageContainer(targetBuildable)))
+	if (targetBuildable->HasAuthority())
+	{
+	}
+	else
+	{
+	}
+
+	auto commonInfoSubsystem = ACommonInfoSubsystem::Get(targetBuildable->GetWorld());
+
+	if (!targetBuildable->IsA(AFGBuildableConveyorBase::StaticClass()) && !commonInfoSubsystem->IsStorageContainer(targetBuildable))
 	{
 		return;
 	}
@@ -243,6 +258,17 @@ void UProductionInfoAccessor::CollectConveyorProductionInfo
 		{
 			handleTrainPlatformCargoConveyor(trainPlatformCargo, components);
 		}
+		else if (auto conveyor = Cast<AFGBuildableConveyorBase>(buildable))
+		{
+			if (conveyor->GetConnection0() && conveyor->GetConnection0()->GetConnection())
+			{
+				components.Add(conveyor->GetConnection0());
+			}
+			if (conveyor->GetConnection1() && conveyor->GetConnection1()->GetConnection())
+			{
+				components.Add(conveyor->GetConnection1());
+			}
+		}
 		else
 		{
 			TArray<UFGFactoryConnectionComponent*> tempComponents;
@@ -253,6 +279,11 @@ void UProductionInfoAccessor::CollectConveyorProductionInfo
 		for (const auto& component : components)
 		{
 			if (!component->IsConnected())
+			{
+				continue;
+			}
+
+			if (!component->GetConnection())
 			{
 				continue;
 			}
@@ -435,6 +466,11 @@ void UProductionInfoAccessor::CollectPipelineProductionInfo
 				continue;
 			}
 
+			if (!component->GetConnection())
+			{
+				continue;
+			}
+
 			auto otherBuildable = Cast<AFGBuildable>(component->GetConnection()->GetOwner());
 			if (!otherBuildable)
 			{
@@ -545,13 +581,17 @@ void UProductionInfoAccessor::CollectPowerPoleProductionInfo
 	TArray<FProductionInfo>& infos
 )
 {
-	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
+	if (!GetValid(targetBuildable))
+	{
+		return;
+	}
 
-	if (!GetValid(targetBuildable) ||
-		(!commonInfoSubsystem->IsPowerPole(targetBuildable) &&
-			!commonInfoSubsystem->IsPowerPoleWall(targetBuildable) &&
-			!commonInfoSubsystem->IsPowerPoleWallDouble(targetBuildable) &&
-			!commonInfoSubsystem->IsPowerTower(targetBuildable)))
+	auto commonInfoSubsystem = ACommonInfoSubsystem::Get(targetBuildable->GetWorld());
+
+	if (!commonInfoSubsystem->IsPowerPole(targetBuildable) &&
+		!commonInfoSubsystem->IsPowerPoleWall(targetBuildable) &&
+		!commonInfoSubsystem->IsPowerPoleWallDouble(targetBuildable) &&
+		!commonInfoSubsystem->IsPowerTower(targetBuildable))
 	{
 		return;
 	}
@@ -760,6 +800,27 @@ void UProductionInfoAccessor::FilterInfos(TSubclassOf<AFGBuildable> baseType, TA
 	}
 }
 
+void UProductionInfoAccessor::FilterSelectedInfos
+(
+	class UWidget* container,
+	UPARAM(Ref) TArray<FProductionInfo>& infos,
+	TArray<FProductionInfo>& filteredInfos
+)
+{
+	auto widgetTree = Cast<UWidgetTree>(container->GetOuter());
+
+	for (const auto& info : infos)
+	{
+		auto checkbox = widgetTree->FindWidget<UCheckBox>(UWidgetMassUpgradePopupHelper::GetCheckboxName(info));
+
+		if (checkbox && !checkbox->IsChecked())
+		{
+			continue;
+		}
+
+		filteredInfos.Add(info);
+	}
+}
 
 void UProductionInfoAccessor::handleStorageTeleporter
 (
@@ -774,7 +835,7 @@ void UProductionInfoAccessor::handleStorageTeleporter
 	storageTeleporter->GetComponents(tempComponents);
 	components.Append(tempComponents);
 
-	auto CommonInfoSubsystem = ACommonInfoSubsystem::Get();
+	auto CommonInfoSubsystem = ACommonInfoSubsystem::Get(storageTeleporter->GetWorld());
 
 	FScopeLock ScopeLock(&ACommonInfoSubsystem::mclCritical);
 
@@ -806,7 +867,7 @@ void UProductionInfoAccessor::handleUndergroundBeltsComponents
 	undergroundBelt->GetComponents(tempComponents);
 	components.Append(tempComponents);
 
-	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
+	auto commonInfoSubsystem = ACommonInfoSubsystem::Get(undergroundBelt->GetWorld());
 
 	FScopeLock ScopeLock(&ACommonInfoSubsystem::mclCritical);
 
@@ -917,18 +978,24 @@ void UProductionInfoAccessor::handleTrainPlatformCargoConveyor(AFGBuildableTrain
 		{
 			TSet<AFGBuildableTrainPlatform*> seenPlatforms;
 
-			for (auto connectedPlatform = station->GetConnectedPlatformInDirectionOf(i);
-			     connectedPlatform;
-			     connectedPlatform = connectedPlatform->GetConnectedPlatformInDirectionOf(i))
+			auto platformConnection = station->GetStationOutputConnection();
+			if (i)
 			{
-				if (seenPlatforms.Contains(connectedPlatform))
+				platformConnection = station->GetConnectionInOppositeDirection(platformConnection);
+			}
+
+			for (platformConnection = platformConnection->GetConnectedTo();
+			     platformConnection;
+			     platformConnection = platformConnection->GetPlatformOwner()->GetConnectionInOppositeDirection(platformConnection)->GetConnectedTo())
+			{
+				if (seenPlatforms.Contains(platformConnection->GetPlatformOwner()))
 				{
 					// Loop detected
 					break;
 				}
 
 				TArray<UFGFactoryConnectionComponent*> tempComponents;
-				connectedPlatform->GetComponents(tempComponents);
+				platformConnection->GetPlatformOwner()->GetComponents(tempComponents);
 
 				components.Append(tempComponents);
 			}
@@ -953,18 +1020,24 @@ void UProductionInfoAccessor::handleTrainPlatformCargoPipeline(AFGBuildableTrain
 		{
 			TSet<AFGBuildableTrainPlatform*> seenPlatforms;
 
-			for (auto connectedPlatform = station->GetConnectedPlatformInDirectionOf(i);
-			     connectedPlatform;
-			     connectedPlatform = connectedPlatform->GetConnectedPlatformInDirectionOf(i))
+			auto platformConnection = station->GetStationOutputConnection();
+			if (i)
 			{
-				if (seenPlatforms.Contains(connectedPlatform))
+				platformConnection = station->GetConnectionInOppositeDirection(platformConnection);
+			}
+
+			for (platformConnection = platformConnection->GetConnectedTo();
+			     platformConnection;
+			     platformConnection = platformConnection->GetPlatformOwner()->GetConnectionInOppositeDirection(platformConnection)->GetConnectedTo())
+			{
+				if (seenPlatforms.Contains(platformConnection->GetPlatformOwner()))
 				{
 					// Loop detected
 					break;
 				}
 
 				TArray<UFGPipeConnectionComponent*> tempComponents;
-				connectedPlatform->GetComponents(tempComponents);
+				platformConnection->GetPlatformOwner()->GetComponents(tempComponents);
 
 				components.Append(tempComponents);
 			}

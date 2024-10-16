@@ -348,7 +348,7 @@ void UMassUpgradeLogic::UpgradePowerPoles_Server
 		return;
 	}
 
-	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
+	auto commonInfoSubsystem = ACommonInfoSubsystem::Get(player->GetWorld());
 
 	std::map<TSubclassOf<UFGRecipe>, int32> recipeAmountMap;
 

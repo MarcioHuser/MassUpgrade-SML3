@@ -75,7 +75,7 @@ void AMassUpgradeEquipment::Tick(float DeltaSeconds)
 			UMarcioCommonLibsUtils::DumpUnknownClass(hitActor);
 		}
 
-		auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
+		auto commonInfoSubsystem = ACommonInfoSubsystem::Get(GetWorld());
 
 		if (hitActor->IsA(AFGBuildableConveyorBase::StaticClass()) ||
 			commonInfoSubsystem->IsStorageContainer(hitActor) ||
@@ -145,12 +145,12 @@ void AMassUpgradeEquipment::PrimaryFirePressed()
 		*getAuthorityAndPlayer(this)
 		);
 
-	if (!targetBuildable)
+	if (!targetBuildable || !HasAuthority())
 	{
 		return;
 	}
 
-	auto commonInfoSubsystem = ACommonInfoSubsystem::Get();
+	auto commonInfoSubsystem = ACommonInfoSubsystem::Get(GetWorld());
 
 	if (targetBuildable->IsA(AFGBuildableConveyorBase::StaticClass()) || commonInfoSubsystem->IsStorageContainer(targetBuildable))
 	{

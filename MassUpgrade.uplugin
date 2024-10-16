@@ -1,8 +1,8 @@
 {
   "FileVersion": 3,
   "Version": 1,
-  "VersionName": "1.2.1",
-  "SemVersion": "1.2.1",
+  "VersionName": "1.2.3",
+  "SemVersion": "1.2.3",
   "GameVersion": ">=368883",
   "FriendlyName": "MassUpgrade",
   "Description": "Mass upgrade/downgrade your belts and pipes",
@@ -36,7 +36,7 @@
     },
     {
       "Name": "MarcioCommonLibs",
-      "SemVersion": "^1.3.0",
+      "SemVersion": "^1.3.1",
       "Enabled": true
     }
   ]

@@ -7,12 +7,15 @@
 #include "Components/WrapBox.h"
 
 #include <functional>
+#include <map>
 
 #include <WidgetMassUpgradePopupHelper.generated.h>
 
 DECLARE_DYNAMIC_DELEGATE_TwoParams(FAddBuildableIconCell, int32, row, TSubclassOf<class UFGItemDescriptor>, buildableDescriptor);
 
 DECLARE_DYNAMIC_DELEGATE_RetVal_FourParams(UWidget*, FCreateWidgetItemIconWithLabel, bool, showItemName, UTexture2D*, iconImage, float, iconSize, const FText&, itemName);
+
+DECLARE_DYNAMIC_DELEGATE_OneParam(FCheckboxStateChanged, bool, checked);
 
 DECLARE_DYNAMIC_DELEGATE_RetVal_OneParam(TSubclassOf<UFGRecipe>, FGetRecipe, const struct FProductionInfo&, info);
 
@@ -21,24 +24,39 @@ class MASSUPGRADE_API UWidgetMassUpgradePopupHelper : public UObject
 {
 	GENERATED_BODY()
 public:
-	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper")
+	UFUNCTION(
+		BlueprintCallable,
+		Category="WidgetMassUpgradePopupHelper",
+		meta = (WorldContext= "WorldContextObject", HidePin= "WorldContextObject", DefaultToSelf = "WorldContextObject")
+	)
 	static void GetConveyorsBySpeed
 	(
+		class UObject* WorldContextObject,
 		UPARAM(Ref) TArray<struct FComboBoxItem>& beltBySpeed,
 		UPARAM(Ref) TArray<struct FComboBoxItem>& liftBySpeed,
 		UPARAM(Ref) TArray<struct FComboBoxItem>& storageByCapacity
 	);
 
-	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper")
+	UFUNCTION(
+		BlueprintCallable,
+		Category="WidgetMassUpgradePopupHelper",
+		meta = (WorldContext= "WorldContextObject", HidePin= "WorldContextObject", DefaultToSelf = "WorldContextObject")
+	)
 	static void GetPipesBySpeed
 	(
+		class UObject* WorldContextObject,
 		UPARAM(Ref) TArray<struct FComboBoxItem>& pipeByFlowLimit,
 		UPARAM(Ref) TArray<struct FComboBoxItem>& pumpByHeadLift
 	);
 
-	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper")
+	UFUNCTION(
+		BlueprintCallable,
+		Category="WidgetMassUpgradePopupHelper",
+		meta = (WorldContext= "WorldContextObject", HidePin= "WorldContextObject", DefaultToSelf = "WorldContextObject")
+	)
 	static void GetPowerPolesByConnections
 	(
+		class UObject* WorldContextObject,
 		UPARAM(Ref) TArray<struct FComboBoxItem>& wireTypes,
 		UPARAM(Ref) TArray<struct FComboBoxItem>& powerPoleByConnection,
 		UPARAM(Ref) TArray<struct FComboBoxItem>& powerPoleWallByConnection,
@@ -81,7 +99,8 @@ public:
 		const TArray<struct FComboBoxItem>& storageByCapacity,
 		bool crossAttachmentsAndStorages,
 		UPARAM(Ref) TArray<struct FProductionInfo>& infos,
-		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+		FCheckboxStateChanged checkboxStateChanged
 	);
 
 	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper")
@@ -101,7 +120,8 @@ public:
 		const TArray<struct FComboBoxItem>& pumpByHeadLift,
 		bool crossAttachmentsAndStorages,
 		UPARAM(Ref) TArray<struct FProductionInfo>& infos,
-		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+		FCheckboxStateChanged checkboxStateChanged
 	);
 
 	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper")
@@ -130,7 +150,8 @@ public:
 		const TArray<struct FComboBoxItem>& powerTowerByConnection,
 		bool crossAttachmentsAndStorages,
 		UPARAM(Ref) TArray<struct FProductionInfo>& infos,
-		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+		FCheckboxStateChanged checkboxStateChanged
 	);
 
 	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper")
@@ -148,7 +169,8 @@ public:
 		const FName& storageMkType,
 		const TArray<struct FComboBoxItem>& storageByCapacity,
 		const TArray<struct FProductionInfo>& infos,
-		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+		FCheckboxStateChanged checkboxStateChanged
 	);
 
 	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper")
@@ -164,7 +186,8 @@ public:
 		const FName& pumpMkType,
 		const TArray<struct FComboBoxItem>& pumpByHeadLift,
 		const TArray<struct FProductionInfo>& infos,
-		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+		FCheckboxStateChanged checkboxStateChanged
 	);
 
 	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper")
@@ -186,7 +209,8 @@ public:
 		const FName& powerTowerMkType,
 		const TArray<struct FComboBoxItem>& powerTowerByConnection,
 		const TArray<struct FProductionInfo>& infos,
-		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+		FCheckboxStateChanged checkboxStateChanged
 	);
 
 	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper")
@@ -199,7 +223,8 @@ public:
 		const float& iconSize,
 		const TArray<struct FProductionInfo>& infos,
 		FGetRecipe getRecipe,
-		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+		FCheckboxStateChanged checkboxStateChanged
 	);
 
 	static void AddBuildablesAndCost_Implementation
@@ -211,7 +236,8 @@ public:
 		const float& iconSize,
 		const TArray<struct FProductionInfo>& infos,
 		const std::function<TSubclassOf<UFGRecipe>(const struct FProductionInfo&)>& getRecipe,
-		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel
+		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
+		FCheckboxStateChanged checkboxStateChanged
 	);
 
 	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper")
@@ -249,4 +275,12 @@ public:
 	{
 		return TEXT("WidgetMassUpgradePopupHelper: ");
 	}
+
+	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper", BlueprintPure, DisplayName="GetCheckboxName", BlueprintPure)
+	static FName GetCheckboxName(const struct FProductionInfo& info);
+
+	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper", BlueprintPure, DisplayName="GetCheckbox", BlueprintPure)
+	static class UCheckBox* GetCheckbox(class UWidget* container, const struct FProductionInfo& info);
+
+	static std::map<TSubclassOf<UFGBuildDescriptor>, bool> checkedRecipes;
 };
