@@ -4,6 +4,13 @@
 #include "Model/ProductionInfo.h"
 #include "ProductionInfoAccessor.generated.h"
 
+UENUM(BlueprintType)
+enum class CollectProductionInfoIntent : uint8
+{
+	UpdateWidget,
+	Upgrade,
+};
+
 UCLASS(Blueprintable)
 class MASSUPGRADE_API UProductionInfoAccessor : public UObject
 {
@@ -12,7 +19,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category="MassUpgrade|ProductionInfoAccessor")
 	static void GetRefundableItems
 	(
-		UObject* worldContext,
+		class AFGCharacterPlayer* player,
 		TSubclassOf<UFGRecipe> newTypeRecipe,
 		UPARAM(DisplayName = "Production Info") const FProductionInfo& productionInfo,
 		UPARAM(Ref, DisplayName = "Items To Refund") TMap<TSubclassOf<UFGItemDescriptor>, int32>& itemsToRefund,
@@ -32,38 +39,78 @@ public:
 	UFUNCTION(BlueprintCallable, Category="MassUpgrade|ProductionInfoAccessor")
 	static void CollectConveyorProductionInfo
 	(
+		class AMassUpgradeEquipment* massUpgradeEquipment,
 		class AFGBuildable* targetBuildable,
 		bool includeBelts,
 		bool includeLifts,
 		bool includeStorages,
-		const TSet<TSubclassOf<class UFGBuildDescriptor>> selectedTypes,
+		const TSet<TSubclassOf<class UFGBuildDescriptor>>& selectedTypes,
 		bool crossAttachmentsAndStorages,
-		UPARAM(Ref) TArray<FProductionInfo>& infos
+		CollectProductionInfoIntent collectProductionInfoIntent
+	);
+
+	static void CollectConveyorProductionInfo_Server
+	(
+		class AMassUpgradeEquipment* massUpgradeEquipment,
+		class AFGBuildable* targetBuildable,
+		bool includeBelts,
+		bool includeLifts,
+		bool includeStorages,
+		const TSet<TSubclassOf<class UFGBuildDescriptor>>& selectedTypes,
+		bool crossAttachmentsAndStorages,
+		CollectProductionInfoIntent collectProductionInfoIntent
 	);
 
 	UFUNCTION(BlueprintCallable, Category="MassUpgrade|ProductionInfoAccessor")
 	static void CollectPipelineProductionInfo
 	(
+		class AMassUpgradeEquipment* massUpgradeEquipment,
 		class AFGBuildable* targetBuildable,
 		bool includePipelines,
 		bool includePumps,
-		const TSet<TSubclassOf<class UFGBuildDescriptor>> selectedTypes,
+		const TSet<TSubclassOf<class UFGBuildDescriptor>>& selectedTypes,
 		bool crossAttachmentsAndStorages,
-		UPARAM(Ref) TArray<FProductionInfo>& infos
+		CollectProductionInfoIntent collectProductionInfoIntent
+	);
+
+	static void CollectPipelineProductionInfo_Server
+	(
+		class AMassUpgradeEquipment* massUpgradeEquipment,
+		class AFGBuildable* targetBuildable,
+		bool includePipelines,
+		bool includePumps,
+		const TSet<TSubclassOf<class UFGBuildDescriptor>>& selectedTypes,
+		bool crossAttachmentsAndStorages,
+		CollectProductionInfoIntent collectProductionInfoIntent
 	);
 
 	UFUNCTION(BlueprintCallable, Category="MassUpgrade|ProductionInfoAccessor")
 	static void CollectPowerPoleProductionInfo
 	(
+		class AMassUpgradeEquipment* massUpgradeEquipment,
 		class AFGBuildable* targetBuildable,
 		bool includeWires,
 		bool includePowerPoles,
 		bool includePowerPoleWalls,
 		bool includePowerPoleWallDoubles,
 		bool includePowerTowers,
-		const TSet<TSubclassOf<class UFGBuildDescriptor>> selectedTypes,
+		const TSet<TSubclassOf<class UFGBuildDescriptor>>& selectedTypes,
 		bool crossAttachmentsAndStorages,
-		UPARAM(Ref) TArray<FProductionInfo>& infos
+		CollectProductionInfoIntent collectProductionInfoIntent
+	);
+
+	static void CollectPowerPoleProductionInfo_Server
+	(
+		class AMassUpgradeEquipment* massUpgradeEquipment,
+		class AFGBuildable* targetBuildable,
+		bool includeWires,
+		bool includePowerPoles,
+		bool includePowerPoleWalls,
+		bool includePowerPoleWallDoubles,
+		bool includePowerTowers,
+		const TSet<TSubclassOf<class UFGBuildDescriptor>>& selectedTypes,
+		bool crossAttachmentsAndStorages,
+		CollectProductionInfoIntent collectProductionInfoIntent
 	);
 
 	UFUNCTION(BlueprintCallable, Category="MassUpgrade|ProductionInfoAccessor")
@@ -120,4 +167,10 @@ public:
 		class AFGBuildableRailroadStation* station,
 		TSet<class UFGPowerConnectionComponent*>& components
 	);
+
+	UFUNCTION(BlueprintPure, Category="MassUpgrade|ProductionInfoAccessor")
+	static TArray<FProductionInfoWithArray> ToProductionInfoWithArray(const TArray<FProductionInfo>& infos);
+	
+	UFUNCTION(BlueprintPure, Category="MassUpgrade|ProductionInfoAccessor")
+	static TArray<FProductionInfo> ToProductionInfo(const TArray<FProductionInfoWithArray>& infos);
 };

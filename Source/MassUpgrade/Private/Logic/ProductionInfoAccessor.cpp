@@ -18,12 +18,15 @@
 #include <map>
 
 #include "FGCentralStorageSubsystem.h"
+#include "FGCheatManager.h"
 #include "FGCircuitSubsystem.h"
 #include "FGPipeConnectionComponent.h"
 #include "FGPowerConnectionComponent.h"
 #include "FGRailroadSubsystem.h"
 #include "FGTrainPlatformConnection.h"
 #include "FGTrainStationIdentifier.h"
+#include "MassUpgradeEquipment.h"
+#include "MassUpgradeRCO.h"
 #include "Buildables/FGBuildableCircuitBridge.h"
 #include "Buildables/FGBuildableDockingStation.h"
 #include "Buildables/FGBuildablePipeBase.h"
@@ -43,7 +46,7 @@
 
 void UProductionInfoAccessor::GetRefundableItems
 (
-	UObject* worldContext,
+	class AFGCharacterPlayer* player,
 	TSubclassOf<UFGRecipe> newTypeRecipe,
 	const FProductionInfo& productionInfo,
 	TMap<TSubclassOf<UFGItemDescriptor>, int32>& itemsToRefund,
@@ -54,10 +57,19 @@ void UProductionInfoAccessor::GetRefundableItems
 	auto newType = newTypeRecipe ? AFGBuildable::GetBuildableClassFromRecipe(newTypeRecipe) : nullptr;
 	auto newCost = newTypeRecipe ? UFGRecipe::GetIngredients(newTypeRecipe) : TArray<FItemAmount>();
 
-	auto gameState = Cast<AFGGameState>(GEngine->GetWorldFromContextObject(worldContext, EGetWorldErrorMode::ReturnNull)->GetGameState());
+	// auto cheatManager = Cast<AFGPlayerController>(player->GetController())->GetCheatManager();
+	//
+	// auto gameState = Cast<AFGGameState>(player->GetWorld()->GetGameState());
+
+	auto noCost = player->GetInventory()->GetNoBuildCost();
 
 	for (const auto buildable : productionInfo.buildables)
 	{
+		if (!buildable)
+		{
+			continue;
+		}
+
 		int32 multiplier = 1;
 
 		if (auto conveyor = Cast<AFGBuildableConveyorBase>(buildable))
@@ -82,7 +94,7 @@ void UProductionInfoAccessor::GetRefundableItems
 
 		auto buildableClass = buildable->GetClass();
 
-		if (!gameState->GetCheatNoCost() && buildableClass != newType)
+		if (!noCost && buildableClass != newType)
 		{
 			TArray<FInventoryStack> refunds;
 			buildable->GetDismantleRefundReturns(refunds);
@@ -130,7 +142,11 @@ bool UProductionInfoAccessor::CanAffordUpgrade
 
 	auto playerInventory = player->GetInventory();
 
-	auto gameState = Cast<AFGGameState>(player->GetWorld()->GetGameState());
+	// auto cheatManager = Cast<AFGPlayerController>(player->GetController())->GetCheatManager();
+	//
+	// auto gameState = Cast<AFGGameState>(player->GetWorld()->GetGameState());
+
+	auto noCost = player->GetInventory()->GetNoBuildCost();
 
 	TSet<TSubclassOf<AActor>> newTypes;
 
@@ -144,7 +160,7 @@ bool UProductionInfoAccessor::CanAffordUpgrade
 		newTypes.Add(AFGBuildable::GetBuildableClassFromRecipe(targetRecipe));
 	}
 
-	if (!gameState->GetCheatNoCost())
+	if (!noCost)
 	{
 		auto centralStorageSubsystem = AFGCentralStorageSubsystem::Get(player->GetWorld());
 
@@ -177,13 +193,14 @@ bool UProductionInfoAccessor::CanAffordUpgrade
 
 void UProductionInfoAccessor::CollectConveyorProductionInfo
 (
+	AMassUpgradeEquipment* massUpgradeEquipment,
 	class AFGBuildable* targetBuildable,
 	bool includeBelts,
 	bool includeLifts,
 	bool includeStorages,
-	const TSet<TSubclassOf<class UFGBuildDescriptor>> selectedTypes,
+	const TSet<TSubclassOf<class UFGBuildDescriptor>>& selectedTypes,
 	bool crossAttachmentsAndStorages,
-	TArray<FProductionInfo>& infos
+	CollectProductionInfoIntent collectProductionInfoIntent
 )
 {
 	if (!GetValid(targetBuildable))
@@ -191,17 +208,68 @@ void UProductionInfoAccessor::CollectConveyorProductionInfo
 		return;
 	}
 
+	auto commonInfoSubsystem = ACommonInfoSubsystem::Get(targetBuildable->GetWorld());
+
+	if (!targetBuildable->IsA(AFGBuildableConveyorBase::StaticClass()) && !commonInfoSubsystem->IsStorageContainer(targetBuildable))
+	{
+		return;
+	}
+
 	if (targetBuildable->HasAuthority())
 	{
+		CollectConveyorProductionInfo_Server(
+			massUpgradeEquipment,
+			targetBuildable,
+			includeBelts,
+			includeLifts,
+			includeStorages,
+			selectedTypes,
+			crossAttachmentsAndStorages,
+			collectProductionInfoIntent
+			);
 	}
 	else
 	{
+		UMassUpgradeRCO::getRCO(targetBuildable->GetWorld())->CollectConveyorProductionInfo(
+			massUpgradeEquipment,
+			targetBuildable,
+			includeBelts,
+			includeLifts,
+			includeStorages,
+			selectedTypes.Array(),
+			crossAttachmentsAndStorages,
+			collectProductionInfoIntent
+			);
+	}
+}
+
+void UProductionInfoAccessor::CollectConveyorProductionInfo_Server
+(
+	AMassUpgradeEquipment* massUpgradeEquipment,
+	class AFGBuildable* targetBuildable,
+	bool includeBelts,
+	bool includeLifts,
+	bool includeStorages,
+	const TSet<TSubclassOf<class UFGBuildDescriptor>>& selectedTypes,
+	bool crossAttachmentsAndStorages,
+	CollectProductionInfoIntent collectProductionInfoIntent
+)
+{
+	TArray<FProductionInfo> infos;
+
+	if (!GetValid(targetBuildable) || !targetBuildable->HasAuthority())
+	{
+		massUpgradeEquipment->SetProductionInfos(ToProductionInfoWithArray(infos), collectProductionInfoIntent);
+
+		return;
 	}
 
 	auto commonInfoSubsystem = ACommonInfoSubsystem::Get(targetBuildable->GetWorld());
 
 	if (!targetBuildable->IsA(AFGBuildableConveyorBase::StaticClass()) && !commonInfoSubsystem->IsStorageContainer(targetBuildable))
 	{
+		massUpgradeEquipment->SetProductionInfos(ToProductionInfoWithArray(infos), collectProductionInfoIntent);
+
 		return;
 	}
 
@@ -388,21 +456,72 @@ void UProductionInfoAccessor::CollectConveyorProductionInfo
 			return order < 0;
 		}
 		);
+
+	massUpgradeEquipment->SetProductionInfos(ToProductionInfoWithArray(infos), collectProductionInfoIntent);
 }
 
 void UProductionInfoAccessor::CollectPipelineProductionInfo
 (
+	AMassUpgradeEquipment* massUpgradeEquipment,
 	AFGBuildable* targetBuildable,
 	bool includePipelines,
 	bool includePumps,
-	const TSet<TSubclassOf<class UFGBuildDescriptor>> selectedTypes,
+	const TSet<TSubclassOf<class UFGBuildDescriptor>>& selectedTypes,
 	bool crossAttachmentsAndStorages,
-	TArray<FProductionInfo>& infos
+	CollectProductionInfoIntent collectProductionInfoIntent
 )
 {
 	if (!GetValid(targetBuildable) ||
 		(!targetBuildable->IsA(AFGBuildablePipeline::StaticClass()) && !targetBuildable->IsA(AFGBuildablePipelinePump::StaticClass())))
 	{
+		return;
+	}
+
+	if (targetBuildable->HasAuthority())
+	{
+		CollectPipelineProductionInfo_Server(
+			massUpgradeEquipment,
+			targetBuildable,
+			includePipelines,
+			includePumps,
+			selectedTypes,
+			crossAttachmentsAndStorages,
+			collectProductionInfoIntent
+			);
+	}
+	else
+	{
+		UMassUpgradeRCO::getRCO(targetBuildable->GetWorld())->CollectPipelineProductionInfo(
+			massUpgradeEquipment,
+			targetBuildable,
+			includePipelines,
+			includePumps,
+			selectedTypes.Array(),
+			crossAttachmentsAndStorages,
+			collectProductionInfoIntent
+			);
+	}
+}
+
+void UProductionInfoAccessor::CollectPipelineProductionInfo_Server
+(
+	AMassUpgradeEquipment* massUpgradeEquipment,
+	AFGBuildable* targetBuildable,
+	bool includePipelines,
+	bool includePumps,
+	const TSet<TSubclassOf<class UFGBuildDescriptor>>& selectedTypes,
+	bool crossAttachmentsAndStorages,
+	CollectProductionInfoIntent collectProductionInfoIntent
+)
+{
+	TArray<FProductionInfo> infos;
+
+	if (!GetValid(targetBuildable) ||
+		!targetBuildable->HasAuthority() ||
+		(!targetBuildable->IsA(AFGBuildablePipeline::StaticClass()) && !targetBuildable->IsA(AFGBuildablePipelinePump::StaticClass())))
+	{
+		massUpgradeEquipment->SetProductionInfos(ToProductionInfoWithArray(infos), collectProductionInfoIntent);
+
 		return;
 	}
 
@@ -566,19 +685,22 @@ void UProductionInfoAccessor::CollectPipelineProductionInfo
 			return order < 0;
 		}
 		);
+
+	massUpgradeEquipment->SetProductionInfos(ToProductionInfoWithArray(infos), collectProductionInfoIntent);
 }
 
 void UProductionInfoAccessor::CollectPowerPoleProductionInfo
 (
+	AMassUpgradeEquipment* massUpgradeEquipment,
 	AFGBuildable* targetBuildable,
 	bool includeWires,
 	bool includePowerPoles,
 	bool includePowerPoleWalls,
 	bool includePowerPoleWallDoubles,
 	bool includePowerTowers,
-	const TSet<TSubclassOf<UFGBuildDescriptor>> selectedTypes,
+	const TSet<TSubclassOf<UFGBuildDescriptor>>& selectedTypes,
 	bool crossAttachmentsAndStorages,
-	TArray<FProductionInfo>& infos
+	CollectProductionInfoIntent collectProductionInfoIntent
 )
 {
 	if (!GetValid(targetBuildable))
@@ -593,6 +715,73 @@ void UProductionInfoAccessor::CollectPowerPoleProductionInfo
 		!commonInfoSubsystem->IsPowerPoleWallDouble(targetBuildable) &&
 		!commonInfoSubsystem->IsPowerTower(targetBuildable))
 	{
+		return;
+	}
+
+	if (targetBuildable->HasAuthority())
+	{
+		CollectPowerPoleProductionInfo_Server(
+			massUpgradeEquipment,
+			targetBuildable,
+			includeWires,
+			includePowerPoles,
+			includePowerPoleWalls,
+			includePowerPoleWallDoubles,
+			includePowerTowers,
+			selectedTypes,
+			crossAttachmentsAndStorages,
+			collectProductionInfoIntent
+			);
+	}
+	else
+	{
+		UMassUpgradeRCO::getRCO(targetBuildable->GetWorld())->CollectPowerPoleProductionInfo(
+			massUpgradeEquipment,
+			targetBuildable,
+			includeWires,
+			includePowerPoles,
+			includePowerPoleWalls,
+			includePowerPoleWallDoubles,
+			includePowerTowers,
+			selectedTypes.Array(),
+			crossAttachmentsAndStorages,
+			collectProductionInfoIntent
+			);
+	}
+}
+
+void UProductionInfoAccessor::CollectPowerPoleProductionInfo_Server
+(
+	AMassUpgradeEquipment* massUpgradeEquipment,
+	AFGBuildable* targetBuildable,
+	bool includeWires,
+	bool includePowerPoles,
+	bool includePowerPoleWalls,
+	bool includePowerPoleWallDoubles,
+	bool includePowerTowers,
+	const TSet<TSubclassOf<UFGBuildDescriptor>>& selectedTypes,
+	bool crossAttachmentsAndStorages,
+	CollectProductionInfoIntent collectProductionInfoIntent
+)
+{
+	TArray<FProductionInfo> infos;
+
+	if (!GetValid(targetBuildable) || !targetBuildable->HasAuthority())
+	{
+		massUpgradeEquipment->SetProductionInfos(ToProductionInfoWithArray(infos), collectProductionInfoIntent);
+
+		return;
+	}
+
+	auto commonInfoSubsystem = ACommonInfoSubsystem::Get(targetBuildable->GetWorld());
+
+	if (!commonInfoSubsystem->IsPowerPole(targetBuildable) &&
+		!commonInfoSubsystem->IsPowerPoleWall(targetBuildable) &&
+		!commonInfoSubsystem->IsPowerPoleWallDouble(targetBuildable) &&
+		!commonInfoSubsystem->IsPowerTower(targetBuildable))
+	{
+		massUpgradeEquipment->SetProductionInfos(ToProductionInfoWithArray(infos), collectProductionInfoIntent);
+
 		return;
 	}
 
@@ -783,6 +972,8 @@ void UProductionInfoAccessor::CollectPowerPoleProductionInfo
 			return order < 0;
 		}
 		);
+
+	massUpgradeEquipment->SetProductionInfos(ToProductionInfoWithArray(infos), collectProductionInfoIntent);
 }
 
 void UProductionInfoAccessor::FilterInfos(TSubclassOf<AFGBuildable> baseType, TArray<FProductionInfo>& infos, TArray<FProductionInfo>& filteredInfos)
@@ -803,7 +994,7 @@ void UProductionInfoAccessor::FilterInfos(TSubclassOf<AFGBuildable> baseType, TA
 void UProductionInfoAccessor::FilterSelectedInfos
 (
 	class UWidget* container,
-	UPARAM(Ref) TArray<FProductionInfo>& infos,
+	TArray<FProductionInfo>& infos,
 	TArray<FProductionInfo>& filteredInfos
 )
 {
@@ -1065,6 +1256,40 @@ void UProductionInfoAccessor::handleTrainPlatformCargoPowerPole(AFGBuildableRail
 	}
 }
 
+TArray<FProductionInfoWithArray> UProductionInfoAccessor::ToProductionInfoWithArray(const TArray<FProductionInfo>& infos)
+{
+	TArray<FProductionInfoWithArray> infos2;
+
+	for (const auto& info : infos)
+	{
+		infos2.Add(
+			FProductionInfoWithArray{
+				info.buildableType,
+				info.buildables.Array()
+			}
+			);
+	}
+
+	return infos2;
+}
+
+TArray<FProductionInfo> UProductionInfoAccessor::ToProductionInfo(const TArray<FProductionInfoWithArray>& infos)
+{
+	TArray<FProductionInfo> infos2;
+
+	for (const auto& info : infos)
+	{
+		infos2.Add(
+			FProductionInfo{
+				info.buildableType,
+				TSet<AFGBuildable*>(info.buildables)
+			}
+			);
+	}
+
+	return infos2;
+}
+
 void UProductionInfoAccessor::AddInfosToShoppingList(AFGCharacterPlayer* player, const TArray<FProductionInfo>& infos, const TSubclassOf<UFGRecipe>& targetRecipe)
 {
 	if (!player || !targetRecipe)
@@ -1104,6 +1329,11 @@ void UProductionInfoAccessor::AddInfosToShoppingList(AFGCharacterPlayer* player,
 
 		for (auto buildable : info.buildables)
 		{
+			if (!buildable)
+			{
+				continue;
+			}
+			
 			shoppingListObject_Class->IncreaseAmount(buildable->GetDismantleRefundReturnsMultiplier());
 		}
 	}

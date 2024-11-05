@@ -29,6 +29,8 @@
 #include "Util/MULogging.h"
 #include "Util/MarcioCommonLibsUtils.h"
 #include "Async/Async.h"
+#include "Buildables/FGBuildableBlueprintDesigner.h"
+#include "Kismet/GameplayStatics.h"
 #include "Logic/ProductionInfoAccessor.h"
 
 #ifndef OPTIMIZE
@@ -66,7 +68,7 @@ void UMassUpgradeLogic::UpgradeConveyors
 			newBeltTypeRecipe,
 			newLiftTypeRecipe,
 			newStorageTypeRecipe,
-			infos
+			UProductionInfoAccessor::ToProductionInfoWithArray(infos)
 			);
 	}
 }
@@ -121,6 +123,11 @@ void UMassUpgradeLogic::UpgradeConveyors_Server
 	{
 		for (auto buildable : info.buildables)
 		{
+			if (!buildable)
+			{
+				continue;
+			}
+
 			if (auto belt = Cast<AFGBuildableConveyorBelt>(buildable))
 			{
 				belts.Add(belt);
@@ -184,7 +191,7 @@ void UMassUpgradeLogic::UpgradePipelines
 			player,
 			newPipelineTypeRecipe,
 			newPumpTypeRecipe,
-			infos
+			UProductionInfoAccessor::ToProductionInfoWithArray(infos)
 			);
 	}
 }
@@ -236,6 +243,11 @@ void UMassUpgradeLogic::UpgradePipelines_Server
 	{
 		for (auto buildable : info.buildables)
 		{
+			if (!buildable)
+			{
+				continue;
+			}
+
 			if (auto pipeline = Cast<AFGBuildablePipeline>(buildable))
 			{
 				pipelines.Add(pipeline);
@@ -299,7 +311,7 @@ void UMassUpgradeLogic::UpgradePowerPoles
 			newPowerPoleWallTypeRecipe,
 			newPowerPoleWallDoubleTypeRecipe,
 			newPowerTowerTypeRecipe,
-			infos
+			UProductionInfoAccessor::ToProductionInfoWithArray(infos)
 			);
 	}
 }
@@ -362,6 +374,11 @@ void UMassUpgradeLogic::UpgradePowerPoles_Server
 	{
 		for (auto buildable : info.buildables)
 		{
+			if (!buildable)
+			{
+				continue;
+			}
+
 			if (buildable->IsA(AFGBuildableWire::StaticClass()))
 			{
 				wires.Add(Cast<AFGBuildableWire>(buildable));
@@ -434,7 +451,8 @@ int32 UMassUpgradeLogic::UpgradeConveyor
 	auto newConveyorType = AFGBuildable::GetBuildableClassFromRecipe(newConveyorTypeRecipe);
 	auto buildableSubsystem = AFGBuildableSubsystem::Get(world);
 	auto playerInventory = player->GetInventory();
-	auto gameState = Cast<AFGGameState>(world->GetGameState());
+	//auto gameState = Cast<AFGGameState>(world->GetGameState());
+	auto noCost = playerInventory->GetNoBuildCost();
 
 	for (auto conveyor : conveyors)
 	{
@@ -449,6 +467,8 @@ int32 UMassUpgradeLogic::UpgradeConveyor
 			conveyor->GetActorLocation(),
 			player
 			);
+
+		hologram->SetInsideBlueprintDesigner(conveyor->GetBlueprintDesigner());
 
 		FHitResult hitResult(conveyor, hologram->GetComponentByClass<UPrimitiveComponent>(), conveyor->GetActorLocation(), conveyor->GetActorRotation().Vector());
 		if (!hologram->TryUpgrade(hitResult))
@@ -465,7 +485,7 @@ int32 UMassUpgradeLogic::UpgradeConveyor
 			continue;
 		}
 
-		if (!gameState->GetCheatNoCost())
+		if (!noCost)
 		{
 			for (const auto& itemAmount : hologram->GetCost(false))
 			{
@@ -541,9 +561,10 @@ int32 UMassUpgradeLogic::UpgradeStorage
 
 	auto world = player->GetWorld();
 	auto newStorageType = AFGBuildable::GetBuildableClassFromRecipe(newStorageTypeRecipe);
-	//auto buildableSubsystem = AFGBuildableSubsystem::Get(world);
-	//auto playerInventory = player->GetInventory();
-	auto gameState = Cast<AFGGameState>(world->GetGameState());
+	auto buildableSubsystem = AFGBuildableSubsystem::Get(world);
+	auto playerInventory = player->GetInventory();
+	// auto gameState = Cast<AFGGameState>(world->GetGameState());
+	auto noCost = playerInventory->GetNoBuildCost();
 
 	for (auto storage : storages)
 	{
@@ -554,7 +575,32 @@ int32 UMassUpgradeLogic::UpgradeStorage
 
 		auto transform = storage->GetActorTransform();
 
-		if (!gameState->GetCheatNoCost())
+		// auto hologram = AFGHologram::SpawnHologramFromRecipe(
+		// 	newStorageTypeRecipe,
+		// 	player->GetBuildGun(),
+		// 	storage->GetActorLocation(),
+		// 	player
+		// 	);
+
+		// hologram->SetInsideBlueprintDesigner(storage->GetBlueprintDesigner());
+		//
+		// FHitResult hitResult(storage, hologram->GetComponentByClass<UPrimitiveComponent>(), storage->GetActorLocation(), storage->GetActorRotation().Vector());
+		// hologram->SetHologramLocationAndRotation(hitResult);
+		// if (!hologram->TryUpgrade(hitResult))
+		// {
+		// 	hologram->Destroy();
+		// 	continue;
+		// }
+
+		// hologram->ValidatePlacementAndCost(playerInventory);
+
+		// if (!hologram->IsUpgrade())
+		// {
+		// 	hologram->Destroy();
+		// 	continue;
+		// }
+
+		if (!noCost)
 		{
 			for (const auto& itemAmount : UFGRecipe::GetIngredients(newStorageTypeRecipe))
 			{
@@ -570,11 +616,36 @@ int32 UMassUpgradeLogic::UpgradeStorage
 			}
 		}
 
-		FActorSpawnParameters spawnParams;
-		spawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		spawnParams.TransformScaleMethod = ESpawnActorScaleMethod::MultiplyWithRoot;
+		//hologram->CheckValidPlacement();
 
-		auto newStorage = Cast<AFGBuildableStorage>(world->SpawnActor(newStorageType, &transform, spawnParams));
+		//hologram->DoMultiStepPlacement(false);
+
+		//hologram->CheckValidPlacement();
+
+		// TArray<AActor*> children;
+		// auto newStorage = Cast<AFGBuildableStorage>(hologram->Construct(children, buildableSubsystem->GetNewNetConstructionID()));
+		//
+		// hologram->Destroy();
+
+		auto newStorage = world->SpawnActorDeferred<AFGBuildableStorage>(
+			newStorageType,
+			transform,
+			nullptr,
+			player,
+			ESpawnActorCollisionHandlingMethod::AlwaysSpawn,
+			ESpawnActorScaleMethod::MultiplyWithRoot
+			);
+
+		auto blueprintDesigner = storage->GetBlueprintDesigner();
+
+		if (blueprintDesigner)
+		{
+			newStorage->SetInsideBlueprintDesigner(blueprintDesigner);
+
+			blueprintDesigner->OnBuildableConstructedInsideDesigner(newStorage);
+		}
+
+		UGameplayStatics::FinishSpawningActor(newStorage, transform);
 
 		newStorage->SetBuiltWithRecipe(newStorageTypeRecipe);
 		newStorage->SetOriginalBuildableVariant(newStorageType);
@@ -640,6 +711,8 @@ int32 UMassUpgradeLogic::UpgradeStorage
 			}
 		}
 
+		storage->SetActorHiddenInGame(true);
+		
 		newStorage->PlayBuildEffects(player);
 		newStorage->ExecutePlayBuildEffects();
 
@@ -678,7 +751,8 @@ int32 UMassUpgradeLogic::UpgradePipeline
 	auto newPipelineType = AFGBuildable::GetBuildableClassFromRecipe(newPipelineTypeRecipe);
 	auto buildableSubsystem = AFGBuildableSubsystem::Get(world);
 	auto playerInventory = player->GetInventory();
-	auto gameState = Cast<AFGGameState>(world->GetGameState());
+	//auto gameState = Cast<AFGGameState>(world->GetGameState());
+	auto noCost = playerInventory->GetNoBuildCost();
 
 	for (auto pipeline : pipelines)
 	{
@@ -693,6 +767,9 @@ int32 UMassUpgradeLogic::UpgradePipeline
 			pipeline->GetActorLocation(),
 			player
 			);
+
+		// Set it into the blueprint designer
+		hologram->SetInsideBlueprintDesigner(pipeline->GetBlueprintDesigner());
 
 		FHitResult hitResult(pipeline, hologram->GetComponentByClass<UPrimitiveComponent>(), pipeline->GetActorLocation(), pipeline->GetActorRotation().Vector());
 		if (!hologram->TryUpgrade(hitResult))
@@ -709,7 +786,7 @@ int32 UMassUpgradeLogic::UpgradePipeline
 			continue;
 		}
 
-		if (!gameState->GetCheatNoCost())
+		if (!noCost)
 		{
 			for (const auto& itemAmount : hologram->GetCost(false))
 			{
@@ -786,9 +863,10 @@ int32 UMassUpgradeLogic::UpgradePump
 
 	auto world = player->GetWorld();
 	auto newPumpType = AFGBuildable::GetBuildableClassFromRecipe(newPumpTypeRecipe);
-	//auto buildableSubsystem = AFGBuildableSubsystem::Get(world);
-	//auto playerInventory = player->GetInventory();
-	auto gameState = Cast<AFGGameState>(world->GetGameState());
+	auto buildableSubsystem = AFGBuildableSubsystem::Get(world);
+	auto playerInventory = player->GetInventory();
+	// auto gameState = Cast<AFGGameState>(world->GetGameState());
+	auto noCost = playerInventory->GetNoBuildCost();
 	auto powerCircuitSubsystem = AFGCircuitSubsystem::Get(world);
 
 	for (auto pump : pumps)
@@ -800,7 +878,32 @@ int32 UMassUpgradeLogic::UpgradePump
 
 		auto transform = pump->GetActorTransform();
 
-		if (!gameState->GetCheatNoCost())
+		// auto hologram = AFGHologram::SpawnHologramFromRecipe(
+		// 	newPumpTypeRecipe,
+		// 	player->GetBuildGun(),
+		// 	pump->GetActorLocation(),
+		// 	player
+		// 	);
+
+		// hologram->SetInsideBlueprintDesigner(pump->GetBlueprintDesigner());
+
+		// FHitResult hitResult(pump, hologram->GetComponentByClass<UPrimitiveComponent>(), pump->GetActorLocation(), pump->GetActorRotation().Vector());
+		// hologram->SetHologramLocationAndRotation(hitResult);
+		// if (!hologram->TryUpgrade(hitResult))
+		// {
+		// 	hologram->Destroy();
+		// 	continue;
+		// }
+
+		// hologram->ValidatePlacementAndCost(playerInventory);
+
+		// if (!hologram->IsUpgrade())
+		// {
+		// 	hologram->Destroy();
+		// 	continue;
+		// }
+
+		if (!noCost)
 		{
 			for (const auto& itemAmount : UFGRecipe::GetIngredients(newPumpTypeRecipe))
 			{
@@ -816,11 +919,36 @@ int32 UMassUpgradeLogic::UpgradePump
 			}
 		}
 
-		FActorSpawnParameters spawnParams;
-		spawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		spawnParams.TransformScaleMethod = ESpawnActorScaleMethod::MultiplyWithRoot;
+		// hologram->CheckValidPlacement();
 
-		auto newPump = Cast<AFGBuildablePipelinePump>(world->SpawnActor(newPumpType, &transform, spawnParams));
+		// hologram->DoMultiStepPlacement(false);
+
+		// hologram->CheckValidPlacement();
+
+		// TArray<AActor*> children;
+		// auto newPump = Cast<AFGBuildablePipelinePump>(hologram->Construct(children, buildableSubsystem->GetNewNetConstructionID()));
+		//
+		// hologram->Destroy();
+
+		auto newPump = world->SpawnActorDeferred<AFGBuildablePipelinePump>(
+			newPumpType,
+			transform,
+			nullptr,
+			player,
+			ESpawnActorCollisionHandlingMethod::AlwaysSpawn,
+			ESpawnActorScaleMethod::MultiplyWithRoot
+			);
+
+		auto blueprintDesigner = pump->GetBlueprintDesigner();
+
+		if (blueprintDesigner)
+		{
+			newPump->SetInsideBlueprintDesigner(blueprintDesigner);
+
+			blueprintDesigner->OnBuildableConstructedInsideDesigner(newPump);
+		}
+
+		UGameplayStatics::FinishSpawningActor(newPump, transform);
 
 		newPump->SetBuiltWithRecipe(newPumpTypeRecipe);
 		newPump->SetOriginalBuildableVariant(newPumpType);
@@ -847,6 +975,8 @@ int32 UMassUpgradeLogic::UpgradePump
 			newComponents[1]->SetConnection(connection); // Connect to the new pipeline
 		}
 
+		newPump->SetActorHiddenInGame(true);
+		
 		newPump->PlayBuildEffects(player);
 		newPump->ExecutePlayBuildEffects();
 
@@ -927,7 +1057,8 @@ int32 UMassUpgradeLogic::UpgradeWire
 	auto newWireType = AFGBuildable::GetBuildableClassFromRecipe(newWireTypeRecipe);
 	auto buildableSubsystem = AFGBuildableSubsystem::Get(world);
 	auto playerInventory = player->GetInventory();
-	auto gameState = Cast<AFGGameState>(world->GetGameState());
+	// auto gameState = Cast<AFGGameState>(world->GetGameState());
+	auto noCost = playerInventory->GetNoBuildCost();
 
 	for (auto wire : wires)
 	{
@@ -942,6 +1073,9 @@ int32 UMassUpgradeLogic::UpgradeWire
 			wire->GetActorLocation(),
 			player
 			);
+
+		// Set it into the blueprint designer
+		hologram->SetInsideBlueprintDesigner(wire->GetBlueprintDesigner());
 
 		FHitResult hitResult(wire, hologram->GetComponentByClass<UPrimitiveComponent>(), wire->GetActorLocation(), wire->GetActorRotation().Vector());
 		if (!hologram->TryUpgrade(hitResult))
@@ -958,7 +1092,7 @@ int32 UMassUpgradeLogic::UpgradeWire
 			continue;
 		}
 
-		if (!gameState->GetCheatNoCost())
+		if (!noCost)
 		{
 			for (const auto& itemAmount : hologram->GetCost(false))
 			{
@@ -1024,7 +1158,8 @@ int32 UMassUpgradeLogic::UpgradePowerPole
 	auto newPowerPoleType = AFGBuildable::GetBuildableClassFromRecipe(newPowerPoleTypeRecipe);
 	auto buildableSubsystem = AFGBuildableSubsystem::Get(world);
 	auto playerInventory = player->GetInventory();
-	auto gameState = Cast<AFGGameState>(world->GetGameState());
+	//auto gameState = Cast<AFGGameState>(world->GetGameState());
+	auto noCost = playerInventory->GetNoBuildCost();
 
 	for (auto powerPole : powerPoles)
 	{
@@ -1039,6 +1174,9 @@ int32 UMassUpgradeLogic::UpgradePowerPole
 			powerPole->GetActorLocation(),
 			player
 			);
+
+		// Set it into the blueprint designer
+		hologram->SetInsideBlueprintDesigner(powerPole->GetBlueprintDesigner());
 
 		FHitResult hitResult(powerPole, hologram->GetComponentByClass<UPrimitiveComponent>(), powerPole->GetActorLocation(), powerPole->GetActorRotation().Vector());
 		if (!hologram->TryUpgrade(hitResult))
@@ -1055,7 +1193,7 @@ int32 UMassUpgradeLogic::UpgradePowerPole
 			continue;
 		}
 
-		if (!gameState->GetCheatNoCost())
+		if (!noCost)
 		{
 			for (const auto& itemAmount : hologram->GetCost(false))
 			{

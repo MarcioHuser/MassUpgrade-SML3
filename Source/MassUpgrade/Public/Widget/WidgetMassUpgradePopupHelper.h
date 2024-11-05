@@ -82,6 +82,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper")
 	static void HandleConstructConveyorPopup
 	(
+		class AMassUpgradeEquipment* massUpgradeEquipment,
 		class UGridPanel* gridBuildables,
 		class UWrapBox* boxItemsCost,
 		class UButton* btnUpgradeBuildables,
@@ -97,15 +98,13 @@ public:
 		bool includeStorages,
 		UComboBoxKey* cmbStorageMk,
 		const TArray<struct FComboBoxItem>& storageByCapacity,
-		bool crossAttachmentsAndStorages,
-		UPARAM(Ref) TArray<struct FProductionInfo>& infos,
-		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
-		FCheckboxStateChanged checkboxStateChanged
+		bool crossAttachmentsAndStorages
 	);
 
 	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper")
 	static void HandleConstructPipelinePopup
 	(
+		class AMassUpgradeEquipment* massUpgradeEquipment,
 		class UGridPanel* gridBuildables,
 		class UWrapBox* boxItemsCost,
 		class UButton* btnUpgradeBuildables,
@@ -118,15 +117,13 @@ public:
 		bool includePumps,
 		UComboBoxKey* cmbPumpMk,
 		const TArray<struct FComboBoxItem>& pumpByHeadLift,
-		bool crossAttachmentsAndStorages,
-		UPARAM(Ref) TArray<struct FProductionInfo>& infos,
-		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
-		FCheckboxStateChanged checkboxStateChanged
+		bool crossAttachmentsAndStorages
 	);
 
 	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper")
 	static void HandleConstructPowerPolePopup
 	(
+		class AMassUpgradeEquipment* massUpgradeEquipment,
 		class UGridPanel* gridBuildables,
 		class UWrapBox* boxItemsCost,
 		class UButton* btnUpgradeBuildables,
@@ -148,10 +145,7 @@ public:
 		bool includePowerTowers,
 		UComboBoxKey* cmbPowerTowerMk,
 		const TArray<struct FComboBoxItem>& powerTowerByConnection,
-		bool crossAttachmentsAndStorages,
-		UPARAM(Ref) TArray<struct FProductionInfo>& infos,
-		FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
-		FCheckboxStateChanged checkboxStateChanged
+		bool crossAttachmentsAndStorages
 	);
 
 	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper")

@@ -25,6 +25,7 @@
 #include "Model/ComboBoxItem.h"
 
 #include "FGPowerConnectionComponent.h"
+#include "MassUpgradeEquipment.h"
 #include "Buildables/FGBuildableWall.h"
 #include "Buildables/FGBuildableWire.h"
 #include "Components/CheckBox.h"
@@ -338,6 +339,7 @@ float UWidgetMassUpgradePopupHelper::GetConveyorSpeed(AFGBuildableConveyorBase* 
 
 void UWidgetMassUpgradePopupHelper::HandleConstructConveyorPopup
 (
+	AMassUpgradeEquipment* massUpgradeEquipment,
 	UGridPanel* gridBuildables,
 	UWrapBox* boxItemsCost,
 	UButton* btnUpgradeBuildables,
@@ -353,18 +355,13 @@ void UWidgetMassUpgradePopupHelper::HandleConstructConveyorPopup
 	bool includeStorages,
 	UComboBoxKey* cmbStorageMk,
 	const TArray<struct FComboBoxItem>& storageByCapacity,
-	bool crossAttachmentsAndStorages,
-	TArray<struct FProductionInfo>& infos,
-	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
-	FCheckboxStateChanged checkboxStateChanged
+	bool crossAttachmentsAndStorages
 )
 {
 	MU_LOG_Display_Condition(
 		*getTagName(),
 		TEXT("HandleConstructConveyorPopup begin")
 		);
-
-	infos.Empty();
 
 	TArray<float> keys;
 
@@ -407,31 +404,32 @@ void UWidgetMassUpgradePopupHelper::HandleConstructConveyorPopup
 	}
 
 	UProductionInfoAccessor::CollectConveyorProductionInfo(
+		massUpgradeEquipment,
 		targetBuildable,
 		includeBelts,
 		includeLifts,
 		includeStorages,
 		selectedTypes,
 		crossAttachmentsAndStorages,
-		infos
+		CollectProductionInfoIntent::UpdateWidget
 		);
 
-	AddConveyors(
-		gridBuildables,
-		boxItemsCost,
-		btnUpgradeBuildables,
-		gridHeaderCount,
-		iconSize,
-		cmbBeltMk ? cmbBeltMk->GetSelectedOption() : FName(),
-		beltBySpeed,
-		cmbLiftMk ? cmbLiftMk->GetSelectedOption() : FName(),
-		liftBySpeed,
-		cmbStorageMk ? cmbStorageMk->GetSelectedOption() : FName(),
-		storageByCapacity,
-		infos,
-		createWidgetItemIconWithLabel,
-		checkboxStateChanged
-		);
+	// AddConveyors(
+	// 	gridBuildables,
+	// 	boxItemsCost,
+	// 	btnUpgradeBuildables,
+	// 	gridHeaderCount,
+	// 	iconSize,
+	// 	cmbBeltMk ? cmbBeltMk->GetSelectedOption() : FName(),
+	// 	beltBySpeed,
+	// 	cmbLiftMk ? cmbLiftMk->GetSelectedOption() : FName(),
+	// 	liftBySpeed,
+	// 	cmbStorageMk ? cmbStorageMk->GetSelectedOption() : FName(),
+	// 	storageByCapacity,
+	// 	infos,
+	// 	createWidgetItemIconWithLabel,
+	// 	checkboxStateChanged
+	// 	);
 
 	MU_LOG_Display_Condition(
 		*getTagName(),
@@ -441,6 +439,7 @@ void UWidgetMassUpgradePopupHelper::HandleConstructConveyorPopup
 
 void UWidgetMassUpgradePopupHelper::HandleConstructPipelinePopup
 (
+	AMassUpgradeEquipment* massUpgradeEquipment,
 	UGridPanel* gridBuildables,
 	UWrapBox* boxItemsCost,
 	UButton* btnUpgradeBuildables,
@@ -453,18 +452,13 @@ void UWidgetMassUpgradePopupHelper::HandleConstructPipelinePopup
 	bool includePumps,
 	UComboBoxKey* cmbPumpMk,
 	const TArray<struct FComboBoxItem>& pumpByHeadLift,
-	bool crossAttachmentsAndStorages,
-	TArray<FProductionInfo>& infos,
-	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
-	FCheckboxStateChanged checkboxStateChanged
+	bool crossAttachmentsAndStorages
 )
 {
 	MU_LOG_Display_Condition(
 		*getTagName(),
 		TEXT("HandleConstructPipelinePopup begin")
 		);
-
-	infos.Empty();
 
 	TArray<float> keys;
 
@@ -496,28 +490,29 @@ void UWidgetMassUpgradePopupHelper::HandleConstructPipelinePopup
 	}
 
 	UProductionInfoAccessor::CollectPipelineProductionInfo(
+		massUpgradeEquipment,
 		targetBuildable,
 		includePipelines,
 		includePumps,
 		selectedTypes,
 		crossAttachmentsAndStorages,
-		infos
+		CollectProductionInfoIntent::UpdateWidget
 		);
 
-	AddPipelines(
-		gridBuildables,
-		boxItemsCost,
-		btnUpgradeBuildables,
-		gridHeaderCount,
-		iconSize,
-		cmbPipelineMk ? cmbPipelineMk->GetSelectedOption() : FName(),
-		pipelineByFlowLimit,
-		cmbPumpMk ? cmbPumpMk->GetSelectedOption() : FName(),
-		pumpByHeadLift,
-		infos,
-		createWidgetItemIconWithLabel,
-		checkboxStateChanged
-		);
+	// AddPipelines(
+	// 	gridBuildables,
+	// 	boxItemsCost,
+	// 	btnUpgradeBuildables,
+	// 	gridHeaderCount,
+	// 	iconSize,
+	// 	cmbPipelineMk ? cmbPipelineMk->GetSelectedOption() : FName(),
+	// 	pipelineByFlowLimit,
+	// 	cmbPumpMk ? cmbPumpMk->GetSelectedOption() : FName(),
+	// 	pumpByHeadLift,
+	// 	infos,
+	// 	createWidgetItemIconWithLabel,
+	// 	checkboxStateChanged
+	// 	);
 
 	MU_LOG_Display_Condition(
 		*getTagName(),
@@ -527,6 +522,7 @@ void UWidgetMassUpgradePopupHelper::HandleConstructPipelinePopup
 
 void UWidgetMassUpgradePopupHelper::HandleConstructPowerPolePopup
 (
+	AMassUpgradeEquipment* massUpgradeEquipment,
 	UGridPanel* gridBuildables,
 	UWrapBox* boxItemsCost,
 	UButton* btnUpgradeBuildables,
@@ -548,18 +544,13 @@ void UWidgetMassUpgradePopupHelper::HandleConstructPowerPolePopup
 	bool includePowerTowers,
 	UComboBoxKey* cmbPowerTowerMk,
 	const TArray<FComboBoxItem>& powerTowerByConnection,
-	bool crossAttachmentsAndStorages,
-	TArray<FProductionInfo>& infos,
-	FCreateWidgetItemIconWithLabel createWidgetItemIconWithLabel,
-	FCheckboxStateChanged checkboxStateChanged
+	bool crossAttachmentsAndStorages
 )
 {
 	MU_LOG_Display_Condition(
 		*getTagName(),
 		TEXT("HandleConstructPowerPolePopup begin")
 		);
-
-	infos.Empty();
 
 	TArray<float> keys;
 
@@ -651,6 +642,7 @@ void UWidgetMassUpgradePopupHelper::HandleConstructPowerPolePopup
 	}
 
 	UProductionInfoAccessor::CollectPowerPoleProductionInfo(
+		massUpgradeEquipment,
 		targetBuildable,
 		includeWires,
 		includePowerPoles,
@@ -659,29 +651,29 @@ void UWidgetMassUpgradePopupHelper::HandleConstructPowerPolePopup
 		includePowerTowers,
 		selectedTypes,
 		crossAttachmentsAndStorages,
-		infos
+		CollectProductionInfoIntent::UpdateWidget
 		);
 
-	AddPowerPoles(
-		gridBuildables,
-		boxItemsCost,
-		btnUpgradeBuildables,
-		gridHeaderCount,
-		iconSize,
-		cmbWireMk ? cmbWireMk->GetSelectedOption() : FName(),
-		wireTypes,
-		cmbPowerPoleMk ? cmbPowerPoleMk->GetSelectedOption() : FName(),
-		powerPoleByConnection,
-		cmbPowerPoleWallMk ? cmbPowerPoleWallMk->GetSelectedOption() : FName(),
-		powerPoleWallByConnection,
-		cmbPowerPoleWallDoubleMk ? cmbPowerPoleWallDoubleMk->GetSelectedOption() : FName(),
-		powerPoleWallDoubleByConnection,
-		cmbPowerTowerMk ? cmbPowerTowerMk->GetSelectedOption() : FName(),
-		powerTowerByConnection,
-		infos,
-		createWidgetItemIconWithLabel,
-		checkboxStateChanged
-		);
+	// AddPowerPoles(
+	// 	gridBuildables,
+	// 	boxItemsCost,
+	// 	btnUpgradeBuildables,
+	// 	gridHeaderCount,
+	// 	iconSize,
+	// 	cmbWireMk ? cmbWireMk->GetSelectedOption() : FName(),
+	// 	wireTypes,
+	// 	cmbPowerPoleMk ? cmbPowerPoleMk->GetSelectedOption() : FName(),
+	// 	powerPoleByConnection,
+	// 	cmbPowerPoleWallMk ? cmbPowerPoleWallMk->GetSelectedOption() : FName(),
+	// 	powerPoleWallByConnection,
+	// 	cmbPowerPoleWallDoubleMk ? cmbPowerPoleWallDoubleMk->GetSelectedOption() : FName(),
+	// 	powerPoleWallDoubleByConnection,
+	// 	cmbPowerTowerMk ? cmbPowerTowerMk->GetSelectedOption() : FName(),
+	// 	powerTowerByConnection,
+	// 	infos,
+	// 	createWidgetItemIconWithLabel,
+	// 	checkboxStateChanged
+	// 	);
 
 	MU_LOG_Display_Condition(
 		*getTagName(),
@@ -929,10 +921,14 @@ void UWidgetMassUpgradePopupHelper::AddBuildablesAndCost_Implementation
 		}
 
 		auto checkbox = widgetTree->FindWidget<UCheckBox>(GetCheckboxName(info));
-		localCheckedRecipes[info.buildableType] =
-			checkbox
-				? checkbox->IsChecked()
-				: localCheckedRecipes.find(info.buildableType) == localCheckedRecipes.end();
+		if (checkbox)
+		{
+			localCheckedRecipes[info.buildableType] = checkbox->IsChecked();
+		}
+		else if (localCheckedRecipes.find(info.buildableType) == localCheckedRecipes.end())
+		{
+			localCheckedRecipes[info.buildableType] = true;
+		}
 
 		hasChecked |= localCheckedRecipes[info.buildableType];
 
@@ -968,8 +964,9 @@ void UWidgetMassUpgradePopupHelper::AddBuildablesAndCost_Implementation
 		// 	continue;
 		// }
 
-		auto isChecked = localCheckedRecipes.find(info.buildableType) == localCheckedRecipes.end() ||
-			localCheckedRecipes[info.buildableType];
+		auto isChecked = localCheckedRecipes.find(info.buildableType) == localCheckedRecipes.end()
+			                 ? true
+			                 : localCheckedRecipes[info.buildableType];
 
 		rowNumber++;
 

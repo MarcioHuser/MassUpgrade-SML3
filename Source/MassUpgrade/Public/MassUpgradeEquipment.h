@@ -5,6 +5,13 @@
 
 #include "MassUpgradeEquipment.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+	FSetProductionInfos,
+	const TArray<struct FProductionInfoWithArray>&,
+	infos,
+	enum CollectProductionInfoIntent,
+	collectProductionInfoIntent
+	);
 
 UCLASS(BlueprintType)
 class MASSUPGRADE_API AMassUpgradeEquipment : public AFGEquipment
@@ -19,9 +26,19 @@ public:
 
 	virtual void Equip(AFGCharacterPlayer* character) override;
 	virtual void UnEquip() override;
-	
+
 	UFUNCTION(BlueprintCallable)
 	virtual void PrimaryFirePressed();
+
+	UPROPERTY(BlueprintAssignable, Category = "MassUpgrade")
+	FSetProductionInfos OnSetProductionInfos;
+
+	UFUNCTION(Category = "EfficiencyChecker", NetMulticast, Reliable)
+	virtual void SetProductionInfos
+	(
+		const TArray<struct FProductionInfoWithArray>& infos,
+		enum CollectProductionInfoIntent collectProductionInfoIntent
+	);
 
 	static FString getAuthorityAndPlayer(const AActor* actor);
 

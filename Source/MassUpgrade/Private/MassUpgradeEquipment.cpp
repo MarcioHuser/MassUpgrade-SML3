@@ -19,6 +19,11 @@
 #pragma optimize("", off )
 #endif
 
+void AMassUpgradeEquipment::SetProductionInfos_Implementation(const TArray<FProductionInfoWithArray>& infos, CollectProductionInfoIntent collectProductionInfoIntent)
+{
+	OnSetProductionInfos.Broadcast(infos, collectProductionInfoIntent);
+}
+
 FString AMassUpgradeEquipment::getAuthorityAndPlayer(const AActor* actor)
 {
 	return FString(TEXT("Has Authority = ")) +
@@ -145,7 +150,7 @@ void AMassUpgradeEquipment::PrimaryFirePressed()
 		*getAuthorityAndPlayer(this)
 		);
 
-	if (!targetBuildable || !HasAuthority())
+	if (!targetBuildable)
 	{
 		return;
 	}

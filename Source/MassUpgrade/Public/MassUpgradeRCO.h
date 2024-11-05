@@ -30,7 +30,7 @@ public:
 		TSubclassOf<class UFGRecipe> newBeltTypeRecipe,
 		TSubclassOf<class UFGRecipe> newLiftTypeRecipe,
 		TSubclassOf<class UFGRecipe> newStorageTypeRecipe,
-		const TArray<struct FProductionInfo>& infos
+		const TArray<struct FProductionInfoWithArray>& infos
 	);
 
 	UFUNCTION(BlueprintCallable, Server, WithValidation, Reliable, Category="MassUpgrade")
@@ -39,7 +39,7 @@ public:
 		class AFGCharacterPlayer* player,
 		TSubclassOf<class UFGRecipe> newPipelineTypeRecipe,
 		TSubclassOf<class UFGRecipe> newPumpTypeRecipe,
-		const TArray<struct FProductionInfo>& infos
+		const TArray<struct FProductionInfoWithArray>& infos
 	);
 
 	UFUNCTION(BlueprintCallable, Server, WithValidation, Reliable, Category="MassUpgrade")
@@ -51,7 +51,47 @@ public:
 		TSubclassOf<class UFGRecipe> newPowerPoleWallTypeRecipe,
 		TSubclassOf<class UFGRecipe> newPowerPoleWallDoubleTypeRecipe,
 		TSubclassOf<class UFGRecipe> newPowerTowerTypeRecipe,
-		const TArray<struct FProductionInfo>& infos
+		const TArray<struct FProductionInfoWithArray>& infos
+	);
+
+	UFUNCTION(BlueprintCallable, Server, WithValidation, Reliable, Category="MassUpgrade")
+	void CollectConveyorProductionInfo
+	(
+		class AMassUpgradeEquipment* massUpgradeEquipment,
+		class AFGBuildable* targetBuildable,
+		bool includeBelts,
+		bool includeLifts,
+		bool includeStorages,
+		const TArray<TSubclassOf<class UFGBuildDescriptor>>& selectedTypes,
+		bool crossAttachmentsAndStorages,
+		enum CollectProductionInfoIntent collectProductionInfoIntent
+	);
+
+	UFUNCTION(BlueprintCallable, Server, WithValidation, Reliable, Category="MassUpgrade")
+	void CollectPipelineProductionInfo
+	(
+		AMassUpgradeEquipment* massUpgradeEquipment,
+		AFGBuildable* targetBuildable,
+		bool includePipelines,
+		bool includePumps,
+		const TArray<TSubclassOf<class UFGBuildDescriptor>>& selectedTypes,
+		bool crossAttachmentsAndStorages,
+		CollectProductionInfoIntent collectProductionInfoIntent
+	);
+
+	UFUNCTION(BlueprintCallable, Server, WithValidation, Reliable, Category="MassUpgrade")
+	void CollectPowerPoleProductionInfo
+	(
+		class AMassUpgradeEquipment* massUpgradeEquipment,
+		class AFGBuildable* targetBuildable,
+		bool includeWires,
+		bool includePowerPoles,
+		bool includePowerPoleWalls,
+		bool includePowerPoleWallDoubles,
+		bool includePowerTowers,
+		const TArray<TSubclassOf<class UFGBuildDescriptor>>& selectedTypes,
+		bool crossAttachmentsAndStorages,
+		CollectProductionInfoIntent collectProductionInfoIntent
 	);
 
 	UPROPERTY(Replicated)

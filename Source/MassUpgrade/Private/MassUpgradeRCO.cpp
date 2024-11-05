@@ -2,6 +2,7 @@
 
 #include "FGPlayerController.h"
 #include "Logic/MassUpgradeLogic.h"
+#include "Logic/ProductionInfoAccessor.h"
 #include "Net/UnrealNetwork.h"
 #include "Util/MUOptimize.h"
 #include "Util/MULogging.h"
@@ -26,6 +27,126 @@ void UMassUpgradeRCO::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	DOREPLIFETIME(UMassUpgradeRCO, dummy);
 }
 
+void UMassUpgradeRCO::CollectPowerPoleProductionInfo_Implementation
+(
+	AMassUpgradeEquipment* massUpgradeEquipment,
+	AFGBuildable* targetBuildable,
+	bool includeWires,
+	bool includePowerPoles,
+	bool includePowerPoleWalls,
+	bool includePowerPoleWallDoubles,
+	bool includePowerTowers,
+	const TArray<TSubclassOf<UFGBuildDescriptor>>& selectedTypes,
+	bool crossAttachmentsAndStorages,
+	CollectProductionInfoIntent collectProductionInfoIntent
+)
+{
+	UProductionInfoAccessor::CollectPowerPoleProductionInfo_Server(
+		massUpgradeEquipment,
+		targetBuildable,
+		includeWires,
+		includePowerPoles,
+		includePowerPoleWalls,
+		includePowerPoleWallDoubles,
+		includePowerTowers,
+		TSet<TSubclassOf<class UFGBuildDescriptor>>(selectedTypes),
+		crossAttachmentsAndStorages,
+		collectProductionInfoIntent
+		);
+}
+
+bool UMassUpgradeRCO::CollectPowerPoleProductionInfo_Validate
+(
+	AMassUpgradeEquipment* massUpgradeEquipment,
+	AFGBuildable* targetBuildable,
+	bool includeWires,
+	bool includePowerPoles,
+	bool includePowerPoleWalls,
+	bool includePowerPoleWallDoubles,
+	bool includePowerTowers,
+	const TArray<TSubclassOf<UFGBuildDescriptor>>& selectedTypes,
+	bool crossAttachmentsAndStorages,
+	CollectProductionInfoIntent collectProductionInfoIntent
+)
+{
+	return true;
+}
+
+void UMassUpgradeRCO::CollectPipelineProductionInfo_Implementation
+(
+	AMassUpgradeEquipment* massUpgradeEquipment,
+	AFGBuildable* targetBuildable,
+	bool includePipelines,
+	bool includePumps,
+	const TArray<TSubclassOf<UFGBuildDescriptor>>& selectedTypes,
+	bool crossAttachmentsAndStorages,
+	CollectProductionInfoIntent collectProductionInfoIntent
+)
+{
+	UProductionInfoAccessor::CollectPipelineProductionInfo_Server(
+		massUpgradeEquipment,
+		targetBuildable,
+		includePipelines,
+		includePumps,
+		TSet<TSubclassOf<UFGBuildDescriptor>>(selectedTypes),
+		crossAttachmentsAndStorages,
+		collectProductionInfoIntent
+		);
+}
+
+bool UMassUpgradeRCO::CollectPipelineProductionInfo_Validate
+(
+	AMassUpgradeEquipment* massUpgradeEquipment,
+	AFGBuildable* targetBuildable,
+	bool includePipelines,
+	bool includePumps,
+	const TArray<TSubclassOf<UFGBuildDescriptor>>& selectedTypes,
+	bool crossAttachmentsAndStorages,
+	CollectProductionInfoIntent collectProductionInfoIntent
+)
+{
+	return true;
+}
+
+void UMassUpgradeRCO::CollectConveyorProductionInfo_Implementation
+(
+	AMassUpgradeEquipment* massUpgradeEquipment,
+	AFGBuildable* targetBuildable,
+	bool includeBelts,
+	bool includeLifts,
+	bool includeStorages,
+	const TArray<TSubclassOf<UFGBuildDescriptor>>& selectedTypes,
+	bool crossAttachmentsAndStorages,
+	CollectProductionInfoIntent collectProductionInfoIntent
+)
+{
+	UProductionInfoAccessor::CollectConveyorProductionInfo_Server(
+		massUpgradeEquipment,
+		targetBuildable,
+		includeBelts,
+		includeLifts,
+		includeStorages,
+		TSet<TSubclassOf<UFGBuildDescriptor>>(selectedTypes),
+		crossAttachmentsAndStorages,
+		collectProductionInfoIntent
+		);
+}
+
+bool UMassUpgradeRCO::CollectConveyorProductionInfo_Validate
+(
+	AMassUpgradeEquipment* massUpgradeEquipment,
+	AFGBuildable* targetBuildable,
+	bool includeBelts,
+	bool includeLifts,
+	bool includeStorages,
+	const TArray<TSubclassOf<UFGBuildDescriptor>>& selectedTypes,
+	bool crossAttachmentsAndStorages,
+	CollectProductionInfoIntent collectProductionInfoIntent
+)
+{
+	return true;
+}
+
 void UMassUpgradeRCO::UpgradePowerPoles_Implementation
 (
 	AFGCharacterPlayer* player,
@@ -34,7 +155,7 @@ void UMassUpgradeRCO::UpgradePowerPoles_Implementation
 	TSubclassOf<UFGRecipe> newPowerPoleWallTypeRecipe,
 	TSubclassOf<UFGRecipe> newPowerPoleWallDoubleTypeRecipe,
 	TSubclassOf<UFGRecipe> newPowerTowerTypeRecipe,
-	const TArray<FProductionInfo>& infos
+	const TArray<FProductionInfoWithArray>& infos
 )
 {
 	UMassUpgradeLogic::UpgradePowerPoles_Server(
@@ -44,7 +165,7 @@ void UMassUpgradeRCO::UpgradePowerPoles_Implementation
 		newPowerPoleWallTypeRecipe,
 		newPowerPoleWallDoubleTypeRecipe,
 		newPowerTowerTypeRecipe,
-		infos
+		UProductionInfoAccessor::ToProductionInfo(infos)
 		);
 }
 
@@ -56,7 +177,7 @@ bool UMassUpgradeRCO::UpgradePowerPoles_Validate
 	TSubclassOf<UFGRecipe> newPowerPoleWallTypeRecipe,
 	TSubclassOf<UFGRecipe> newPowerPoleWallDoubleTypeRecipe,
 	TSubclassOf<UFGRecipe> newPowerTowerTypeRecipe,
-	const TArray<FProductionInfo>& infos
+	const TArray<FProductionInfoWithArray>& infos
 )
 {
 	return true;
@@ -67,14 +188,14 @@ void UMassUpgradeRCO::UpgradePipelines_Implementation
 	AFGCharacterPlayer* player,
 	TSubclassOf<UFGRecipe> newPipelineTypeRecipe,
 	TSubclassOf<UFGRecipe> newPumpTypeRecipe,
-	const TArray<FProductionInfo>& infos
+	const TArray<FProductionInfoWithArray>& infos
 )
 {
 	UMassUpgradeLogic::UpgradePipelines_Server(
 		player,
 		newPipelineTypeRecipe,
 		newPumpTypeRecipe,
-		infos
+		UProductionInfoAccessor::ToProductionInfo(infos)
 		);
 }
 
@@ -83,7 +204,7 @@ bool UMassUpgradeRCO::UpgradePipelines_Validate
 	AFGCharacterPlayer* player,
 	TSubclassOf<UFGRecipe> newPipelineTypeRecipe,
 	TSubclassOf<UFGRecipe> newPumpTypeRecipe,
-	const TArray<FProductionInfo>& infos
+	const TArray<FProductionInfoWithArray>& infos
 )
 {
 	return true;
@@ -95,7 +216,7 @@ void UMassUpgradeRCO::UpgradeConveyors_Implementation
 	TSubclassOf<UFGRecipe> newBeltTypeRecipe,
 	TSubclassOf<UFGRecipe> newLiftTypeRecipe,
 	TSubclassOf<UFGRecipe> newStorageTypeRecipe,
-	const TArray<FProductionInfo>& infos
+	const TArray<FProductionInfoWithArray>& infos
 )
 {
 	UMassUpgradeLogic::UpgradeConveyors_Server(
@@ -103,7 +224,7 @@ void UMassUpgradeRCO::UpgradeConveyors_Implementation
 		newBeltTypeRecipe,
 		newLiftTypeRecipe,
 		newStorageTypeRecipe,
-		infos
+		UProductionInfoAccessor::ToProductionInfo(infos)
 		);
 }
 
@@ -113,7 +234,7 @@ bool UMassUpgradeRCO::UpgradeConveyors_Validate
 	TSubclassOf<UFGRecipe> newBeltTypeRecipe,
 	TSubclassOf<UFGRecipe> newLiftTypeRecipe,
 	TSubclassOf<UFGRecipe> newStorageTypeRecipe,
-	const TArray<FProductionInfo>& infos
+	const TArray<FProductionInfoWithArray>& infos
 )
 {
 	return true;
