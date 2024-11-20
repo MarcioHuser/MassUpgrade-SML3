@@ -959,8 +959,11 @@ int32 UMassUpgradeLogic::UpgradePump
 		auto oldComponents = pump->GetPipeConnections();
 		auto newComponents = newPump->GetPipeConnections();
 
-		UMarcioCommonLibsUtils::DumpUnknownClass(pump, TEXT(""), TEXT("Old-"));
-		UMarcioCommonLibsUtils::DumpUnknownClass(pump->GetPowerInfo(), TEXT(""),TEXT("Old-"));
+		if (IS_MU_LOG_LEVEL(ELogVerbosity::Log))
+		{
+			UMarcioCommonLibsUtils::DumpUnknownClass(pump, TEXT(""), TEXT("Old-"));
+			UMarcioCommonLibsUtils::DumpUnknownClass(pump->GetPowerInfo(), TEXT(""),TEXT("Old-"));
+		}
 
 		// Remake the connections
 		if (auto connection = oldComponents[0]->GetConnection())
@@ -991,8 +994,11 @@ int32 UMassUpgradeLogic::UpgradePump
 			auto oldPowerComponent = oldPowerConnections[x];
 			auto newPowerComponent = newPowerConnections[x];
 
-			UMarcioCommonLibsUtils::DumpUnknownClass(oldPowerComponent, TEXT(""), TEXT("Old-"));
-			UMarcioCommonLibsUtils::DumpUnknownClass(newPowerComponent, TEXT(""),TEXT("New-"));
+			if (IS_MU_LOG_LEVEL(ELogVerbosity::Log))
+			{
+				UMarcioCommonLibsUtils::DumpUnknownClass(oldPowerComponent, TEXT(""), TEXT("Old-"));
+				UMarcioCommonLibsUtils::DumpUnknownClass(newPowerComponent, TEXT(""),TEXT("New-"));
+			}
 
 			TArray<AFGBuildableWire*> wires;
 			oldPowerComponent->GetWires(wires);
@@ -1025,8 +1031,11 @@ int32 UMassUpgradeLogic::UpgradePump
 			actor->Destroy();
 		}
 
-		UMarcioCommonLibsUtils::DumpUnknownClass(newPump, TEXT(""),TEXT("New-"));
-		UMarcioCommonLibsUtils::DumpUnknownClass(newPump->GetPowerInfo(), TEXT(""),TEXT("New-"));
+		if (IS_MU_LOG_LEVEL(ELogVerbosity::Log))
+		{
+			UMarcioCommonLibsUtils::DumpUnknownClass(newPump, TEXT(""),TEXT("New-"));
+			UMarcioCommonLibsUtils::DumpUnknownClass(newPump->GetPowerInfo(), TEXT(""),TEXT("New-"));
+		}
 
 		pump->TurnOffAndDestroy();
 
@@ -1319,7 +1328,10 @@ void UMassUpgradeLogic::AddRemoveFromInventory
 			nullptr
 			);
 
-		UMarcioCommonLibsUtils::DumpUnknownClass(out_Crate);
+		if (IS_MU_LOG_LEVEL(ELogVerbosity::Log))
+		{
+			UMarcioCommonLibsUtils::DumpUnknownClass(out_Crate);
+		}
 	}
 
 	auto shoppingListComponent = UFGShoppingListComponent::GetShoppingListComponent(player->GetFGPlayerController());

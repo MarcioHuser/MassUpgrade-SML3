@@ -369,7 +369,8 @@ void UProductionInfoAccessor::CollectConveyorProductionInfo_Server
 						otherBuildable->IsA(AFGBuildableStorage::StaticClass()) ||
 						commonInfoSubsystem->IsStorageTeleporter(otherBuildable) ||
 						commonInfoSubsystem->IsModularLoadBalancer(otherBuildable) ||
-						commonInfoSubsystem->IsUndergroundSplitter(otherBuildable)
+						commonInfoSubsystem->IsUndergroundSplitter(otherBuildable) ||
+						commonInfoSubsystem->IsCounterLimiter(otherBuildable)
 					)
 				))
 			{
