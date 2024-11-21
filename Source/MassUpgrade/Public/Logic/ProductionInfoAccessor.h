@@ -162,7 +162,7 @@ public:
 		TSet<class UFGPipeConnectionComponent*>& components
 	);
 
-	static void handleTrainPlatformCargoPowerPole
+	static void handleTrainStationPowerPole
 	(
 		class AFGBuildableRailroadStation* station,
 		TSet<class UFGPowerConnectionComponent*>& components

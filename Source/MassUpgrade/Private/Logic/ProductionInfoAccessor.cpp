@@ -23,6 +23,8 @@
 #include "FGPipeConnectionComponent.h"
 #include "FGPowerConnectionComponent.h"
 #include "FGRailroadSubsystem.h"
+#include "FGRailroadTimeTable.h"
+#include "FGTrain.h"
 #include "FGTrainPlatformConnection.h"
 #include "FGTrainStationIdentifier.h"
 #include "MassUpgradeEquipment.h"
@@ -38,6 +40,8 @@
 #include "Buildables/FGBuildableTrainPlatformCargo.h"
 #include "Buildables/FGBuildableWire.h"
 #include "Components/CheckBox.h"
+#include "Util/MarcioCommonLibsUtils.h"
+#include "Util/MULogging.h"
 #include "Widget/WidgetMassUpgradePopupHelper.h"
 
 #ifndef OPTIMIZE
@@ -841,7 +845,7 @@ void UProductionInfoAccessor::CollectPowerPoleProductionInfo_Server
 
 		if (auto station = Cast<AFGBuildableRailroadStation>(buildable))
 		{
-			handleTrainPlatformCargoPowerPole(station, components);
+			handleTrainStationPowerPole(station, components);
 		}
 		else
 		{
@@ -1155,39 +1159,83 @@ void UProductionInfoAccessor::handleModularLoadBalancerComponents
 
 void UProductionInfoAccessor::handleTrainPlatformCargoConveyor(AFGBuildableTrainPlatformCargo* trainPlatformCargo, TSet<UFGFactoryConnectionComponent*>& components)
 {
+	{
+		TArray<UFGFactoryConnectionComponent*> tempComponents;
+		trainPlatformCargo->GetComponents(tempComponents);
+
+		components.Append(tempComponents);
+	}
+	
 	auto railroadSubsystem = AFGRailroadSubsystem::Get(trainPlatformCargo->GetWorld());
 
 	auto trackId = trainPlatformCargo->GetTrackGraphID();
 
-	TArray<AFGTrainStationIdentifier*> stations;
-	railroadSubsystem->GetTrainStations(trackId, stations);
+	// Determine offsets from all the connected stations
+	TSet<int> stationOffsets;
+	TSet<AFGBuildableRailroadStation*> destinationStations;
 
-	for (auto stationIdentifier : stations)
+	UMarcioCommonLibsUtils::getTrainPlatformIndexes(trainPlatformCargo, stationOffsets, destinationStations);
+
+	TArray<AFGTrain*> trains;
+	railroadSubsystem->GetTrains(trackId, trains);
+
+	for (auto train : trains)
 	{
-		auto station = stationIdentifier->GetStation();
-
-		for (auto i = 0; i <= 1; i++)
+		if (!train->HasTimeTable())
 		{
-			TSet<AFGBuildableTrainPlatform*> seenPlatforms;
+			continue;
+		}
 
-			auto platformConnection = station->GetStationOutputConnection();
-			if (i)
+		// Get train stations
+		auto timeTable = train->GetTimeTable();
+		
+		TArray<FTimeTableStop> stops;
+		timeTable->GetStops(stops);
+		
+		bool stopAtStations = false;
+
+		for (const auto& stop : stops)
+		{
+			if (!stop.Station || !stop.Station->GetStation() || !destinationStations.Contains(stop.Station->GetStation()))
 			{
-				platformConnection = station->GetConnectionInOppositeDirection(platformConnection);
+				continue;
 			}
 
-			for (platformConnection = platformConnection->GetConnectedTo();
-			     platformConnection;
-			     platformConnection = platformConnection->GetPlatformOwner()->GetConnectionInOppositeDirection(platformConnection)->GetConnectedTo())
+			stopAtStations = true;
+
+			break;
+		}
+
+		if (!stopAtStations)
+		{
+			continue;
+		}
+		
+		for (const auto& stop : stops)
+		{
+			if (!stop.Station || !stop.Station->GetStation())
 			{
-				if (seenPlatforms.Contains(platformConnection->GetPlatformOwner()))
+				continue;
+			}
+
+			MU_LOG_Display_Condition(
+				TEXT("    Stop = "),
+				*stop.Station->GetStationName().ToString()
+				);
+
+			for (auto index : stationOffsets)
+			{
+				auto platform = UMarcioCommonLibsUtils::getNthTrainPlatform(stop.Station->GetStation(), index);
+
+				auto stopCargo = Cast<AFGBuildableTrainPlatformCargo>(platform);
+				if (!stopCargo || stopCargo == trainPlatformCargo)
 				{
-					// Loop detected
-					break;
+					// Not a cargo or the same as the current one. Skip
+					continue;
 				}
 
 				TArray<UFGFactoryConnectionComponent*> tempComponents;
-				platformConnection->GetPlatformOwner()->GetComponents(tempComponents);
+				platform->GetComponents(tempComponents);
 
 				components.Append(tempComponents);
 			}
@@ -1197,39 +1245,83 @@ void UProductionInfoAccessor::handleTrainPlatformCargoConveyor(AFGBuildableTrain
 
 void UProductionInfoAccessor::handleTrainPlatformCargoPipeline(AFGBuildableTrainPlatformCargo* trainPlatformCargo, TSet<UFGPipeConnectionComponent*>& components)
 {
+	{
+		TArray<UFGPipeConnectionComponent*> tempComponents;
+		trainPlatformCargo->GetComponents(tempComponents);
+
+		components.Append(tempComponents);
+	}
+	
 	auto railroadSubsystem = AFGRailroadSubsystem::Get(trainPlatformCargo->GetWorld());
 
 	auto trackId = trainPlatformCargo->GetTrackGraphID();
 
-	TArray<AFGTrainStationIdentifier*> stations;
-	railroadSubsystem->GetTrainStations(trackId, stations);
+	// Determine offsets from all the connected stations
+	TSet<int> stationOffsets;
+	TSet<AFGBuildableRailroadStation*> destinationStations;
 
-	for (auto stationIdentifier : stations)
+	UMarcioCommonLibsUtils::getTrainPlatformIndexes(trainPlatformCargo, stationOffsets, destinationStations);
+
+	TArray<AFGTrain*> trains;
+	railroadSubsystem->GetTrains(trackId, trains);
+
+	for (auto train : trains)
 	{
-		auto station = stationIdentifier->GetStation();
-
-		for (auto i = 0; i <= 1; i++)
+		if (!train->HasTimeTable())
 		{
-			TSet<AFGBuildableTrainPlatform*> seenPlatforms;
+			continue;
+		}
 
-			auto platformConnection = station->GetStationOutputConnection();
-			if (i)
+		// Get train stations
+		auto timeTable = train->GetTimeTable();
+		
+		TArray<FTimeTableStop> stops;
+		timeTable->GetStops(stops);
+		
+		bool stopAtStations = false;
+
+		for (const auto& stop : stops)
+		{
+			if (!stop.Station || !stop.Station->GetStation() || !destinationStations.Contains(stop.Station->GetStation()))
 			{
-				platformConnection = station->GetConnectionInOppositeDirection(platformConnection);
+				continue;
 			}
 
-			for (platformConnection = platformConnection->GetConnectedTo();
-			     platformConnection;
-			     platformConnection = platformConnection->GetPlatformOwner()->GetConnectionInOppositeDirection(platformConnection)->GetConnectedTo())
+			stopAtStations = true;
+
+			break;
+		}
+
+		if (!stopAtStations)
+		{
+			continue;
+		}
+		
+		for (const auto& stop : stops)
+		{
+			if (!stop.Station || !stop.Station->GetStation())
 			{
-				if (seenPlatforms.Contains(platformConnection->GetPlatformOwner()))
+				continue;
+			}
+
+			MU_LOG_Display_Condition(
+				TEXT("    Stop = "),
+				*stop.Station->GetStationName().ToString()
+				);
+
+			for (auto index : stationOffsets)
+			{
+				auto platform = UMarcioCommonLibsUtils::getNthTrainPlatform(stop.Station->GetStation(), index);
+
+				auto stopCargo = Cast<AFGBuildableTrainPlatformCargo>(platform);
+				if (!stopCargo || stopCargo == trainPlatformCargo)
 				{
-					// Loop detected
-					break;
+					// Not a cargo or the same as the current one. Skip
+					continue;
 				}
 
 				TArray<UFGPipeConnectionComponent*> tempComponents;
-				platformConnection->GetPlatformOwner()->GetComponents(tempComponents);
+				platform->GetComponents(tempComponents);
 
 				components.Append(tempComponents);
 			}
@@ -1237,7 +1329,7 @@ void UProductionInfoAccessor::handleTrainPlatformCargoPipeline(AFGBuildableTrain
 	}
 }
 
-void UProductionInfoAccessor::handleTrainPlatformCargoPowerPole(AFGBuildableRailroadStation* station, TSet<UFGPowerConnectionComponent*>& components)
+void UProductionInfoAccessor::handleTrainStationPowerPole(AFGBuildableRailroadStation* station, TSet<UFGPowerConnectionComponent*>& components)
 {
 	auto railroadSubsystem = AFGRailroadSubsystem::Get(station->GetWorld());
 
