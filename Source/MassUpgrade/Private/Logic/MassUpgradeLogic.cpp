@@ -30,8 +30,11 @@
 #include "Util/MarcioCommonLibsUtils.h"
 #include "Async/Async.h"
 #include "Buildables/FGBuildableBlueprintDesigner.h"
+#include "Hologram/FGConveyorBeltHologram.h"
+#include "Hologram/FGPipelineHologram.h"
 #include "Kismet/GameplayStatics.h"
 #include "Logic/ProductionInfoAccessor.h"
+#include "Util/MUOptimize.h"
 
 #ifndef OPTIMIZE
 #pragma optimize("", off)
@@ -485,11 +488,17 @@ int32 UMassUpgradeLogic::UpgradeConveyor
 			continue;
 		}
 
+		while (hologram->CanTakeNextBuildStep() && !hologram->DoMultiStepPlacement(true))
+		{
+		}
+
+		auto multiplier = conveyor->GetDismantleRefundReturnsMultiplier();
+
 		if (!noCost)
 		{
-			for (const auto& itemAmount : hologram->GetCost(false))
+			for (const auto& itemAmount : hologram->GetBaseCost())
 			{
-				itemsToAddOrRemoveFromInventory.FindOrAdd(itemAmount.ItemClass) -= itemAmount.Amount;
+				itemsToAddOrRemoveFromInventory.FindOrAdd(itemAmount.ItemClass) -= itemAmount.Amount * multiplier;
 			}
 
 			TArray<FInventoryStack> refunds;
@@ -501,11 +510,16 @@ int32 UMassUpgradeLogic::UpgradeConveyor
 			}
 		}
 
-		hologram->CheckValidPlacement();
+		// hologram->CheckValidPlacement();
+		//
+		// hologram->DoMultiStepPlacement(false);
+		//
+		// hologram->CheckValidPlacement();
 
-		hologram->DoMultiStepPlacement(false);
-
-		hologram->CheckValidPlacement();
+		if (auto conveyorBeltHologram = Cast<AFGConveyorBeltHologram>(hologram))
+		{
+			conveyorBeltHologram->GenerateAndUpdateSpline(hitResult);
+		}
 
 		TArray<AActor*> children;
 		auto newConveyor = Cast<AFGBuildableConveyorBase>(hologram->Construct(children, buildableSubsystem->GetNewNetConstructionID()));
@@ -514,6 +528,15 @@ int32 UMassUpgradeLogic::UpgradeConveyor
 
 		conveyor->PreUpgrade_Implementation();
 		conveyor->Upgrade_Implementation(newConveyor);
+
+		// if (auto sourceBelt = Cast<AFGBuildableConveyorBelt>(conveyor))
+		// {
+		// 	if (auto targetBelt = Cast<AFGBuildableConveyorBelt>(newConveyor))
+		// 	{
+		// 		auto splineData = sourceBelt->GetSplinePointData();
+		// 		AFGBuildableConveyorBelt::Respline(targetBelt, splineData);
+		// 	}
+		// }
 
 		// Remake the connections
 		if (auto connection = conveyor->GetConnection0()->GetConnection())
@@ -538,7 +561,7 @@ int32 UMassUpgradeLogic::UpgradeConveyor
 
 		conveyor->Destroy();
 
-		amountBuilt += newConveyor->GetDismantleRefundReturnsMultiplier();
+		amountBuilt += multiplier;
 	}
 
 	return amountBuilt;
@@ -712,7 +735,7 @@ int32 UMassUpgradeLogic::UpgradeStorage
 		}
 
 		storage->SetActorHiddenInGame(true);
-		
+
 		newStorage->PlayBuildEffects(player);
 		newStorage->ExecutePlayBuildEffects();
 
@@ -786,11 +809,17 @@ int32 UMassUpgradeLogic::UpgradePipeline
 			continue;
 		}
 
+		while (hologram->CanTakeNextBuildStep() && !hologram->DoMultiStepPlacement(true))
+		{
+		}
+
+		auto multiplier = pipeline->GetDismantleRefundReturnsMultiplier();
+
 		if (!noCost)
 		{
-			for (const auto& itemAmount : hologram->GetCost(false))
+			for (const auto& itemAmount : hologram->GetBaseCost())
 			{
-				itemsToAddOrRemoveFromInventory.FindOrAdd(itemAmount.ItemClass) -= itemAmount.Amount;
+				itemsToAddOrRemoveFromInventory.FindOrAdd(itemAmount.ItemClass) -= itemAmount.Amount * multiplier;
 			}
 
 			TArray<FInventoryStack> refunds;
@@ -802,11 +831,16 @@ int32 UMassUpgradeLogic::UpgradePipeline
 			}
 		}
 
-		hologram->CheckValidPlacement();
+		// hologram->CheckValidPlacement();
+		//
+		// hologram->DoMultiStepPlacement(false);
+		//
+		// hologram->CheckValidPlacement();
 
-		hologram->DoMultiStepPlacement(false);
-
-		hologram->CheckValidPlacement();
+		if (auto pipelineHologram = Cast<AFGPipelineHologram>(hologram))
+		{
+			pipelineHologram->GenerateAndUpdateSpline(hitResult);
+		}
 
 		TArray<AActor*> children;
 		auto newPipeline = Cast<AFGBuildablePipeline>(hologram->Construct(children, buildableSubsystem->GetNewNetConstructionID()));
@@ -815,6 +849,18 @@ int32 UMassUpgradeLogic::UpgradePipeline
 
 		pipeline->PreUpgrade_Implementation();
 		pipeline->Upgrade_Implementation(newPipeline);
+
+		// if (auto sourcePipeline = Cast<AFGBuildablePipeline>(pipeline))
+		// {
+		// 	if (auto targetPipeline = Cast<AFGBuildablePipeline>(newPipeline))
+		// 	{
+		// auto splineData = pipeline->GetSplinePointData();
+		// auto mutableSplineData = newPipeline->GetMutableSplinePointData();
+		// mutableSplineData->Empty();
+		// mutableSplineData->Append(splineData);
+		// newPipeline->PopulateSplineComponentFromSplinePointsData();
+		// 	}
+		// }
 
 		// Remake the connections
 		if (auto connection = pipeline->GetPipeConnection0()->GetConnection())
@@ -840,7 +886,7 @@ int32 UMassUpgradeLogic::UpgradePipeline
 
 		pipeline->Destroy();
 
-		amountBuilt += newPipeline->GetDismantleRefundReturnsMultiplier();
+		amountBuilt += multiplier;
 	}
 
 	return amountBuilt;
@@ -979,7 +1025,7 @@ int32 UMassUpgradeLogic::UpgradePump
 		}
 
 		newPump->SetActorHiddenInGame(true);
-		
+
 		newPump->PlayBuildEffects(player);
 		newPump->ExecutePlayBuildEffects();
 
@@ -1101,11 +1147,17 @@ int32 UMassUpgradeLogic::UpgradeWire
 			continue;
 		}
 
+		while (hologram->CanTakeNextBuildStep() && !hologram->DoMultiStepPlacement(true))
+		{
+		}
+
+		auto multiplier = wire->GetDismantleRefundReturnsMultiplier();
+
 		if (!noCost)
 		{
-			for (const auto& itemAmount : hologram->GetCost(false))
+			for (const auto& itemAmount : hologram->GetBaseCost())
 			{
-				itemsToAddOrRemoveFromInventory.FindOrAdd(itemAmount.ItemClass) -= itemAmount.Amount;
+				itemsToAddOrRemoveFromInventory.FindOrAdd(itemAmount.ItemClass) -= itemAmount.Amount * multiplier;
 			}
 
 			TArray<FInventoryStack> refunds;
@@ -1117,11 +1169,11 @@ int32 UMassUpgradeLogic::UpgradeWire
 			}
 		}
 
-		hologram->CheckValidPlacement();
-
-		hologram->DoMultiStepPlacement(false);
-
-		hologram->CheckValidPlacement();
+		// hologram->CheckValidPlacement();
+		//
+		// hologram->DoMultiStepPlacement(false);
+		//
+		// hologram->CheckValidPlacement();
 
 		TArray<AActor*> children;
 		auto newWire = Cast<AFGBuildableWire>(hologram->Construct(children, buildableSubsystem->GetNewNetConstructionID()));
@@ -1142,7 +1194,7 @@ int32 UMassUpgradeLogic::UpgradeWire
 
 		wire->Destroy();
 
-		amountBuilt += newWire->GetDismantleRefundReturnsMultiplier();
+		amountBuilt += multiplier;
 	}
 
 	return amountBuilt;
@@ -1202,6 +1254,10 @@ int32 UMassUpgradeLogic::UpgradePowerPole
 			continue;
 		}
 
+		while (hologram->CanTakeNextBuildStep() && !hologram->DoMultiStepPlacement(true))
+		{
+		}
+
 		if (!noCost)
 		{
 			for (const auto& itemAmount : hologram->GetCost(false))
@@ -1218,11 +1274,11 @@ int32 UMassUpgradeLogic::UpgradePowerPole
 			}
 		}
 
-		hologram->CheckValidPlacement();
-
-		hologram->DoMultiStepPlacement(false);
-
-		hologram->CheckValidPlacement();
+		// hologram->CheckValidPlacement();
+		//
+		// hologram->DoMultiStepPlacement(false);
+		//
+		// hologram->CheckValidPlacement();
 
 		TArray<AActor*> children;
 		auto newPowerPole = Cast<AFGBuildablePowerPole>(hologram->Construct(children, buildableSubsystem->GetNewNetConstructionID()));
@@ -1324,8 +1380,7 @@ void UMassUpgradeLogic::AddRemoveFromInventory
 			// Place at water level, if any
 			TArray<class AActor*>(),
 			out_Crate,
-			EFGCrateType::CT_DismantleCrate,
-			nullptr
+			EFGCrateType::CT_DismantleCrate
 			);
 
 		if (IS_MU_LOG_LEVEL(ELogVerbosity::Log))

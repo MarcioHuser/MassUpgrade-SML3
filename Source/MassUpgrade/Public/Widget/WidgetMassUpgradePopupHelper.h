@@ -270,11 +270,14 @@ public:
 		return TEXT("WidgetMassUpgradePopupHelper: ");
 	}
 
-	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper", BlueprintPure, DisplayName="GetCheckboxName", BlueprintPure)
+	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper", BlueprintPure, DisplayName="GetCheckboxName")
 	static FName GetCheckboxName(const struct FProductionInfo& info);
 
-	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper", BlueprintPure, DisplayName="GetCheckbox", BlueprintPure)
+	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper", BlueprintPure, DisplayName="GetCheckbox")
 	static class UCheckBox* GetCheckbox(class UWidget* container, const struct FProductionInfo& info);
 
 	static std::map<TSubclassOf<UFGBuildDescriptor>, bool> checkedRecipes;
+
+	UFUNCTION(BlueprintCallable, Category="WidgetMassUpgradePopupHelper")
+	static void ResetCheckedRecipes();
 };

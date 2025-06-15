@@ -2,6 +2,8 @@
 
 #include "Util/MULogging.h"
 
+#include "Util/MUOptimize.h"
+
 FMassUpgrade_ConfigStruct UMassUpgradeConfiguration::configuration;
 
 void UMassUpgradeConfiguration::SetMassUpgradeConfiguration(const FMassUpgrade_ConfigStruct& in_configuration)

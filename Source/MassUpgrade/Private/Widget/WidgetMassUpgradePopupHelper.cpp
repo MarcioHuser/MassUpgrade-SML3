@@ -1263,6 +1263,11 @@ UCheckBox* UWidgetMassUpgradePopupHelper::GetCheckbox(UWidget* container, const 
 	return widgetTree->FindWidget<UCheckBox>(GetCheckboxName(info));
 }
 
+void UWidgetMassUpgradePopupHelper::ResetCheckedRecipes()
+{
+	checkedRecipes.clear();
+}
+
 #ifndef OPTIMIZE
 #pragma optimize("", on)
 #endif

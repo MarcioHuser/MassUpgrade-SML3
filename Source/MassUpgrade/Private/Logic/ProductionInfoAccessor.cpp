@@ -44,6 +44,8 @@
 #include "Util/MULogging.h"
 #include "Widget/WidgetMassUpgradePopupHelper.h"
 
+#include "Util/MUOptimize.h"
+
 #ifndef OPTIMIZE
 #pragma optimize("", off)
 #endif

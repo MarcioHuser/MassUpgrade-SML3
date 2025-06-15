@@ -24,8 +24,6 @@ void FMassUpgradeModule::StartupModule()
 	static auto hooked = false;
 
 	// static auto insideBuildGunPrimaryFire = true;
-
-	UWidgetMassUpgradePopupHelper::checkedRecipes.clear();
 	
 	if (!hooked)
 	{
