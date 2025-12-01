@@ -1,3 +1,5 @@
+# This mod was abandoned, no further updates will be worked on it
+
 # Mass Upgrade
 Mass upgrade your belts and lifts
 
